@@ -11,7 +11,7 @@ enum GeminiDocumentScanService {
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
-    static func scan(imageData: Data, mimeType: String) async throws -> DocumentScanResult {
+    static func scan(imageData: Data, mimeType: String, updateStage: ((AIProcessingStage) async -> Void)? = nil) async throws -> DocumentScanResult {
         guard var components = URLComponents(string: endpoint) else {
             throw DocumentScanError.invalidURL
         }
@@ -63,7 +63,7 @@ enum GeminiDocumentScanService {
             generationConfig: DocumentScanGenerationConfig(responseMimeType: "application/json")
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
-        let data = try await GeminiServiceError.responseData(for: request)
+        let data = try await GeminiServiceError.responseData(for: request, updateStage: updateStage)
 
         let decoded = try GeminiServiceError.decode(DocumentScanGenerateContentResponse.self, from: data)
         guard let text = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),

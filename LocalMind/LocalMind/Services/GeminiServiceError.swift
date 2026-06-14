@@ -46,8 +46,9 @@ enum GeminiServiceError: LocalizedError {
         return fallback
     }
 
-    static func responseData(for request: URLRequest) async throws -> Data {
+    static func responseData(for request: URLRequest, updateStage: ((AIProcessingStage) async -> Void)? = nil) async throws -> Data {
         do {
+            await updateStage?(.requestingGemini)
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw GeminiServiceError.requestFailed(statusCode: -1)
@@ -55,6 +56,7 @@ enum GeminiServiceError: LocalizedError {
             guard (200..<300).contains(httpResponse.statusCode) else {
                 throw GeminiServiceError.requestFailed(statusCode: httpResponse.statusCode)
             }
+            await updateStage?(.parsingResponse)
             return data
         } catch let error as GeminiServiceError {
             throw error
