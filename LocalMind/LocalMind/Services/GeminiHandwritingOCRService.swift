@@ -8,7 +8,6 @@ struct HandwritingOCRResult: Identifiable {
 }
 
 enum GeminiHandwritingOCRService {
-    private static let apiKey = GeminiAPIKeyProvider.apiKey
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
@@ -16,6 +15,7 @@ enum GeminiHandwritingOCRService {
         guard var components = URLComponents(string: endpoint) else {
             throw HandwritingOCRError.invalidURL
         }
+        let apiKey = try GeminiAPIKeyProvider.requireAPIKey()
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
             throw HandwritingOCRError.invalidURL
@@ -62,14 +62,9 @@ enum GeminiHandwritingOCRService {
             generationConfig: GeminiOCRGenerationConfig(responseMimeType: "application/json")
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
+        let data = try await GeminiServiceError.responseData(for: request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw HandwritingOCRError.requestFailed
-        }
-
-        let decoded = try JSONDecoder().decode(GeminiOCRGenerateContentResponse.self, from: data)
+        let decoded = try GeminiServiceError.decode(GeminiOCRGenerateContentResponse.self, from: data)
         guard let text = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw HandwritingOCRError.emptyResponse
@@ -84,7 +79,7 @@ enum GeminiHandwritingOCRService {
             throw HandwritingOCRError.invalidJSON
         }
 
-        let payload = try JSONDecoder().decode(GeminiOCRPayload.self, from: data)
+        let payload = try GeminiServiceError.decode(GeminiOCRPayload.self, from: data)
         let content = plainText(payload.content)
         let title = limited(payload.title.trimmingCharacters(in: .whitespacesAndNewlines), maxCount: 30)
         let blocks = AIBlockDraft.sanitized((payload.blocks ?? []).map { block in
@@ -222,11 +217,4 @@ private struct GeminiOCRBlockPayload: Decodable {
     var indentLevel: Int?
     var isChecked: Bool?
     var tableData: [[String]]?
-}
-
-enum HandwritingOCRError: Error {
-    case invalidURL
-    case requestFailed
-    case emptyResponse
-    case invalidJSON
 }

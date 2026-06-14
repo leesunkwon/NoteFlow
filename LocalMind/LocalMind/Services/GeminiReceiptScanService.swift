@@ -26,7 +26,6 @@ struct ReceiptScanResult: Identifiable {
 }
 
 enum GeminiReceiptScanService {
-    private static let apiKey = GeminiAPIKeyProvider.apiKey
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
@@ -34,6 +33,7 @@ enum GeminiReceiptScanService {
         guard var components = URLComponents(string: endpoint) else {
             throw ReceiptScanError.invalidURL
         }
+        let apiKey = try GeminiAPIKeyProvider.requireAPIKey()
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
             throw ReceiptScanError.invalidURL
@@ -92,14 +92,9 @@ enum GeminiReceiptScanService {
             generationConfig: ReceiptGenerationConfig(responseMimeType: "application/json")
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
+        let data = try await GeminiServiceError.responseData(for: request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw ReceiptScanError.requestFailed
-        }
-
-        let decoded = try JSONDecoder().decode(ReceiptGenerateContentResponse.self, from: data)
+        let decoded = try GeminiServiceError.decode(ReceiptGenerateContentResponse.self, from: data)
         guard let text = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ReceiptScanError.emptyResponse
@@ -114,7 +109,7 @@ enum GeminiReceiptScanService {
             throw ReceiptScanError.invalidJSON
         }
 
-        let payload = try JSONDecoder().decode(ReceiptPayload.self, from: data)
+        let payload = try GeminiServiceError.decode(ReceiptPayload.self, from: data)
         let title = limited(plainText(payload.title), maxCount: 30)
         let date = plainText(payload.date)
         let merchant = plainText(payload.merchant)
@@ -271,11 +266,4 @@ private struct ReceiptBlockPayload: Decodable {
     var indentLevel: Int?
     var isChecked: Bool?
     var tableData: [[String]]?
-}
-
-enum ReceiptScanError: Error {
-    case invalidURL
-    case requestFailed
-    case emptyResponse
-    case invalidJSON
 }
