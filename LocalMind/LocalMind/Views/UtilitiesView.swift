@@ -1,0 +1,1301 @@
+import PhotosUI
+import SwiftUI
+import UniformTypeIdentifiers
+import UIKit
+
+struct UtilitiesView: View {
+    let saveOCRResult: (HandwritingOCRResult) -> Void
+    let saveMeetingSummaryResult: (MeetingSummaryResult) -> Void
+    let saveReceiptScanResult: (ReceiptScanResult) -> Void
+    let saveBusinessCardScanResult: (BusinessCardScanResult) -> Void
+    let saveDocumentScanResult: (DocumentScanResult) -> Void
+    let saveFileSummaryResult: (FileSummaryResult) -> Void
+
+    @State private var ocrPreview: HandwritingOCRResult?
+    @State private var meetingPreview: MeetingSummaryResult?
+    @State private var receiptPreview: ReceiptScanResult?
+    @State private var businessCardPreview: BusinessCardScanResult?
+    @State private var documentScanPreview: DocumentScanResult?
+    @State private var fileSummaryPreview: FileSummaryResult?
+    @State private var isProcessingOCR = false
+    @State private var isProcessingMeeting = false
+    @State private var isProcessingReceipt = false
+    @State private var isProcessingBusinessCard = false
+    @State private var isProcessingDocumentScan = false
+    @State private var isProcessingFileSummary = false
+    @State private var ocrError: String?
+    @State private var meetingError: String?
+    @State private var receiptError: String?
+    @State private var businessCardError: String?
+    @State private var documentScanError: String?
+    @State private var fileSummaryError: String?
+
+    private let features: [UtilityFeature] = [
+        UtilityFeature(
+            kind: .documentScan,
+            title: "문서 스캔",
+            subtitle: "종이 문서를 텍스트 메모로 바꿉니다.",
+            description: "계약서, 출력물, 종이 문서를 촬영해 제목과 본문, 표 구조를 갖춘 메모로 변환합니다. 결과를 확인한 뒤 새 메모로 저장할 수 있습니다.",
+            systemImage: "doc.viewfinder"
+        ),
+        UtilityFeature(
+            kind: .fileSummary,
+            title: "파일 요약",
+            subtitle: "PDF, TXT, DOCX를 요약 메모로 정리합니다.",
+            description: "가져온 파일의 내용을 읽어 제목, 핵심 요약, 정리 본문으로 바꿉니다. 결과를 수정한 뒤 NoteFlow 메모로 저장할 수 있습니다.",
+            systemImage: "doc.text.magnifyingglass"
+        ),
+        UtilityFeature(
+            kind: .receipt,
+            title: "지출 스캔",
+            subtitle: "영수증에서 날짜, 금액, 가맹점을 정리합니다.",
+            description: "영수증 속 결제 정보를 읽어 지출 내역으로 정리합니다. 날짜, 금액, 가맹점, 품목을 확인한 뒤 새 메모로 바로 저장할 수 있습니다.",
+            systemImage: "receipt"
+        ),
+        UtilityFeature(
+            kind: .businessCard,
+            title: "연락처 스캔",
+            subtitle: "명함 정보를 연락처 형태로 정리합니다.",
+            description: "명함 속 이름, 회사, 직책, 전화번호, 이메일을 읽어 정돈된 메모로 바꿉니다. 연락처 앱 연동 없이 NoteFlow 메모로 저장합니다.",
+            systemImage: "person.crop.rectangle"
+        ),
+        UtilityFeature(
+            kind: .handwritingOCR,
+            title: "필기 변환",
+            subtitle: "손글씨와 화이트보드를 메모 블록으로 바꿉니다.",
+            description: "종이에 적은 손글씨나 화이트보드 내용을 읽어 NoteFlow 메모 블록으로 변환합니다. 결과를 확인한 뒤 새 메모로 바로 저장할 수 있습니다.",
+            systemImage: "text.viewfinder"
+        ),
+        UtilityFeature(
+            kind: .meetingSummary,
+            title: "회의 요약",
+            subtitle: "음성을 회의록과 핵심 요약으로 정리합니다.",
+            description: "녹음한 회의나 가져온 음성 파일을 읽어 제목, 핵심 요약, 회의록 본문으로 정리합니다. 결과를 확인한 뒤 새 메모로 저장할 수 있습니다.",
+            systemImage: "waveform"
+        )
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(spacing: 12) {
+                    ForEach(features) { feature in
+                        NavigationLink {
+                            UtilityFeatureDetailView(
+                                feature: feature,
+                                isProcessing: isProcessing(feature),
+                                processImage: processImage,
+                                processAudio: processAudio,
+                                processFile: processFile
+                            )
+                        } label: {
+                            UtilityFeatureCard(
+                                feature: feature,
+                                isProcessing: isProcessing(feature)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 10)
+            .padding(.bottom, 24)
+        }
+        .background(NoteFlowDesign.canvas.ignoresSafeArea())
+        .navigationTitle("부가 기능")
+        .navigationBarTitleDisplayMode(.large)
+        .sheet(item: $ocrPreview) { result in
+            HandwritingOCRPreviewSheet(
+                result: result,
+                save: { editedResult in
+                    saveOCRResult(editedResult)
+                    ocrPreview = nil
+                },
+                cancel: {
+                    ocrPreview = nil
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $isProcessingOCR) {
+            UtilityAIProcessingView(message: "필기를 읽고 있어요")
+        }
+        .fullScreenCover(isPresented: $isProcessingMeeting) {
+            UtilityAIProcessingView(message: "음성을 정리하고 있어요")
+        }
+        .fullScreenCover(isPresented: $isProcessingReceipt) {
+            UtilityAIProcessingView(message: "영수증을 읽고 있어요")
+        }
+        .fullScreenCover(isPresented: $isProcessingBusinessCard) {
+            UtilityAIProcessingView(message: "명함을 읽고 있어요")
+        }
+        .fullScreenCover(isPresented: $isProcessingDocumentScan) {
+            UtilityAIProcessingView(message: "문서를 읽고 있어요")
+        }
+        .fullScreenCover(isPresented: $isProcessingFileSummary) {
+            UtilityAIProcessingView(message: "파일을 정리하고 있어요")
+        }
+        .sheet(item: $receiptPreview) { result in
+            ReceiptScanPreviewSheet(
+                result: result,
+                save: { editedResult in
+                    saveReceiptScanResult(editedResult)
+                    receiptPreview = nil
+                },
+                cancel: {
+                    receiptPreview = nil
+                }
+            )
+        }
+        .sheet(item: $businessCardPreview) { result in
+            BusinessCardScanPreviewSheet(
+                result: result,
+                save: { editedResult in
+                    saveBusinessCardScanResult(editedResult)
+                    businessCardPreview = nil
+                },
+                cancel: {
+                    businessCardPreview = nil
+                }
+            )
+        }
+        .sheet(item: $meetingPreview) { result in
+            MeetingSummaryPreviewSheet(
+                result: result,
+                save: { editedResult in
+                    saveMeetingSummaryResult(editedResult)
+                    meetingPreview = nil
+                },
+                cancel: {
+                    meetingPreview = nil
+                }
+            )
+        }
+        .sheet(item: $documentScanPreview) { result in
+            DocumentScanPreviewSheet(
+                result: result,
+                save: { editedResult in
+                    saveDocumentScanResult(editedResult)
+                    documentScanPreview = nil
+                },
+                cancel: {
+                    documentScanPreview = nil
+                }
+            )
+        }
+        .sheet(item: $fileSummaryPreview) { result in
+            FileSummaryPreviewSheet(
+                result: result,
+                save: { editedResult in
+                    saveFileSummaryResult(editedResult)
+                    fileSummaryPreview = nil
+                },
+                cancel: {
+                    fileSummaryPreview = nil
+                }
+            )
+        }
+        .alert("손글씨 변환 실패", isPresented: Binding(
+            get: { ocrError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    ocrError = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(ocrError ?? "")
+        }
+        .alert("회의 요약 실패", isPresented: Binding(
+            get: { meetingError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    meetingError = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(meetingError ?? "")
+        }
+        .alert("지출 스캔 실패", isPresented: Binding(
+            get: { receiptError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    receiptError = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(receiptError ?? "")
+        }
+        .alert("연락처 스캔 실패", isPresented: Binding(
+            get: { businessCardError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    businessCardError = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(businessCardError ?? "")
+        }
+        .alert("문서 스캔 실패", isPresented: Binding(
+            get: { documentScanError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    documentScanError = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(documentScanError ?? "")
+        }
+        .alert("파일 요약 실패", isPresented: Binding(
+            get: { fileSummaryError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    fileSummaryError = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(fileSummaryError ?? "")
+        }
+    }
+
+    private func processImage(_ image: UIImage, kind: UtilityFeatureKind) {
+        guard let imageData = image.normalizedJPEGData(maxDimension: 1800) else {
+            setImageProcessingError(for: kind, message: "이미지를 처리하지 못했습니다.")
+            return
+        }
+
+        switch kind {
+        case .receipt:
+            processReceiptImage(imageData)
+        case .businessCard:
+            processBusinessCardImage(imageData)
+        case .handwritingOCR:
+            processHandwritingImage(imageData)
+        case .documentScan:
+            processDocumentImage(imageData)
+        case .meetingSummary:
+            break
+        case .fileSummary:
+            break
+        }
+    }
+
+    private func processHandwritingImage(_ imageData: Data) {
+        guard !isProcessingOCR else {
+            return
+        }
+
+        isProcessingOCR = true
+        ocrError = nil
+
+        Task {
+            do {
+                let result = try await GeminiHandwritingOCRService.recognize(
+                    imageData: imageData,
+                    mimeType: "image/jpeg"
+                )
+                await MainActor.run {
+                    ocrPreview = result
+                    isProcessingOCR = false
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessingOCR = false
+                    ocrError = "손글씨를 인식하지 못했습니다. 이미지를 다시 선택해 주세요."
+                }
+            }
+        }
+    }
+
+    private func processReceiptImage(_ imageData: Data) {
+        guard !isProcessingReceipt else {
+            return
+        }
+
+        isProcessingReceipt = true
+        receiptError = nil
+
+        Task {
+            do {
+                let result = try await GeminiReceiptScanService.scan(
+                    imageData: imageData,
+                    mimeType: "image/jpeg"
+                )
+                await MainActor.run {
+                    receiptPreview = result
+                    isProcessingReceipt = false
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessingReceipt = false
+                    receiptError = "영수증을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                }
+            }
+        }
+    }
+
+    private func processBusinessCardImage(_ imageData: Data) {
+        guard !isProcessingBusinessCard else {
+            return
+        }
+
+        isProcessingBusinessCard = true
+        businessCardError = nil
+
+        Task {
+            do {
+                let result = try await GeminiBusinessCardScanService.scan(
+                    imageData: imageData,
+                    mimeType: "image/jpeg"
+                )
+                await MainActor.run {
+                    businessCardPreview = result
+                    isProcessingBusinessCard = false
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessingBusinessCard = false
+                    businessCardError = "명함을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                }
+            }
+        }
+    }
+
+    private func processDocumentImage(_ imageData: Data) {
+        guard !isProcessingDocumentScan else {
+            return
+        }
+
+        isProcessingDocumentScan = true
+        documentScanError = nil
+
+        Task {
+            do {
+                let result = try await GeminiDocumentScanService.scan(
+                    imageData: imageData,
+                    mimeType: "image/jpeg"
+                )
+                await MainActor.run {
+                    documentScanPreview = result
+                    isProcessingDocumentScan = false
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessingDocumentScan = false
+                    documentScanError = "문서를 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                }
+            }
+        }
+    }
+
+    private func processFile(_ url: URL) {
+        guard !isProcessingFileSummary else {
+            return
+        }
+
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let input: FileSummaryInput
+        do {
+            input = try FileSummaryInputReader.read(url: url)
+        } catch {
+            fileSummaryError = "파일을 읽을 수 없습니다. PDF, TXT, RTF, DOCX 파일을 선택해 주세요."
+            return
+        }
+
+        isProcessingFileSummary = true
+        fileSummaryError = nil
+
+        Task {
+            do {
+                let result = try await GeminiFileSummaryService.summarize(
+                    fileName: input.fileName,
+                    mimeType: input.mimeType,
+                    text: input.text,
+                    fileData: input.text.isEmpty ? input.data : nil
+                )
+                await MainActor.run {
+                    fileSummaryPreview = result
+                    isProcessingFileSummary = false
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessingFileSummary = false
+                    fileSummaryError = "파일을 요약하지 못했습니다. 파일 형식이나 내용을 확인해 주세요."
+                }
+            }
+        }
+    }
+
+    private func processAudio(_ data: Data, mimeType: String, mode: MeetingSummaryMode) {
+        guard !isProcessingMeeting else {
+            return
+        }
+
+        isProcessingMeeting = true
+        meetingError = nil
+
+        Task {
+            do {
+                let result = try await GeminiMeetingSummaryService.summarize(
+                    audioData: data,
+                    mimeType: mimeType,
+                    mode: mode
+                )
+                await MainActor.run {
+                    meetingPreview = result
+                    isProcessingMeeting = false
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessingMeeting = false
+                    meetingError = "회의 음성을 요약하지 못했습니다. 파일이나 녹음 상태를 확인해 주세요."
+                }
+            }
+        }
+    }
+
+    private func isProcessing(_ feature: UtilityFeature) -> Bool {
+        switch feature.kind {
+        case .receipt:
+            return isProcessingReceipt
+        case .businessCard:
+            return isProcessingBusinessCard
+        case .handwritingOCR:
+            return isProcessingOCR
+        case .meetingSummary:
+            return isProcessingMeeting
+        case .documentScan:
+            return isProcessingDocumentScan
+        case .fileSummary:
+            return isProcessingFileSummary
+        }
+    }
+
+    private func setImageProcessingError(for kind: UtilityFeatureKind, message: String) {
+        switch kind {
+        case .receipt:
+            receiptError = message
+        case .businessCard:
+            businessCardError = message
+        case .handwritingOCR:
+            ocrError = message
+        case .meetingSummary:
+            break
+        case .documentScan:
+            documentScanError = message
+        case .fileSummary:
+            break
+        }
+    }
+}
+
+private enum UtilityFeatureKind {
+    case documentScan
+    case fileSummary
+    case receipt
+    case businessCard
+    case handwritingOCR
+    case meetingSummary
+
+    var ambientColors: [Color] {
+        switch self {
+        case .documentScan:
+            return [
+                Color(red: 0.20, green: 0.58, blue: 1.0),
+                Color(red: 0.66, green: 0.86, blue: 1.0),
+                Color(red: 0.84, green: 0.86, blue: 0.92)
+            ]
+        case .fileSummary:
+            return [
+                Color(red: 0.38, green: 0.42, blue: 1.0),
+                Color(red: 0.18, green: 0.88, blue: 0.76),
+                Color(red: 0.72, green: 0.48, blue: 1.0)
+            ]
+        case .receipt:
+            return [
+                Color(red: 0.30, green: 0.92, blue: 0.68),
+                Color(red: 0.78, green: 0.95, blue: 0.38),
+                Color(red: 0.20, green: 0.68, blue: 0.98)
+            ]
+        case .businessCard:
+            return [
+                Color(red: 0.48, green: 0.46, blue: 1.0),
+                Color(red: 0.78, green: 0.34, blue: 0.96),
+                Color(red: 0.24, green: 0.70, blue: 1.0)
+            ]
+        case .handwritingOCR:
+            return [
+                Color(red: 0.22, green: 0.56, blue: 1.0),
+                Color(red: 0.22, green: 0.94, blue: 0.88),
+                Color(red: 0.68, green: 0.48, blue: 1.0)
+            ]
+        case .meetingSummary:
+            return [
+                Color(red: 1.0, green: 0.54, blue: 0.26),
+                Color(red: 1.0, green: 0.38, blue: 0.66),
+                Color(red: 0.58, green: 0.42, blue: 1.0)
+            ]
+        }
+    }
+
+    var accentLabel: String {
+        switch self {
+        case .documentScan:
+            return "Document intelligence"
+        case .fileSummary:
+            return "File intelligence"
+        case .receipt:
+            return "Scan expenses"
+        case .businessCard:
+            return "Smart contacts"
+        case .handwritingOCR:
+            return "Handwriting to note"
+        case .meetingSummary:
+            return "Meeting intelligence"
+        }
+    }
+}
+
+private struct UtilityFeature: Identifiable {
+    let id = UUID()
+    let kind: UtilityFeatureKind
+    let title: String
+    let subtitle: String
+    let description: String
+    let systemImage: String
+
+    var isAvailable: Bool {
+        true
+    }
+}
+
+private struct UtilityFeatureCard: View {
+    let feature: UtilityFeature
+    let isProcessing: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: feature.systemImage)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(NoteFlowDesign.ink)
+                .frame(width: 44, height: 44)
+                .background(NoteFlowDesign.canvas, in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
+                )
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(feature.title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(NoteFlowDesign.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(feature.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(NoteFlowDesign.mute)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            statusLabel
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NoteFlowDesign.softCloud, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
+        )
+        .opacity(feature.isAvailable ? 1 : 0.7)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(feature.title), \(feature.isAvailable ? "사용 가능" : "준비 중")")
+    }
+
+    @ViewBuilder
+    private var statusLabel: some View {
+        Text(feature.isAvailable ? (isProcessing ? "분석 중" : "보기") : "준비 중")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(NoteFlowDesign.mute)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(NoteFlowDesign.canvas, in: Capsule())
+    }
+}
+
+private struct UtilityFeatureDetailView: View {
+    let feature: UtilityFeature
+    let isProcessing: Bool
+    let processImage: (UIImage, UtilityFeatureKind) -> Void
+    let processAudio: (Data, String, MeetingSummaryMode) -> Void
+    let processFile: (URL) -> Void
+
+    @State private var showsImageSourceDialog = false
+    @State private var showsPhotoPicker = false
+    @State private var showsCamera = false
+    @State private var showsMeetingModeDialog = false
+    @State private var showsAudioSourceDialog = false
+    @State private var showsRecording = false
+    @State private var showsFileImporter = false
+    @State private var activeFileImporter: UtilityFileImportPurpose?
+    @State private var selectedMeetingMode: MeetingSummaryMode = .transcriptAndSummary
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var localError: String?
+
+    var body: some View {
+        ZStack {
+            UtilityFeatureAmbientBackground(colors: feature.kind.ambientColors)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 30) {
+                    UtilityFeatureHero(feature: feature)
+                    bottomAction
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 26)
+                .padding(.bottom, 72)
+            }
+
+            actionPickerOverlay
+        }
+        .background(NoteFlowDesign.canvas.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+        .photosPicker(
+            isPresented: $showsPhotoPicker,
+            selection: $selectedPhotoItem,
+            matching: .images
+        )
+        .onChange(of: selectedPhotoItem) { _, newValue in
+            loadPhotoItem(newValue)
+        }
+        .sheet(isPresented: $showsCamera) {
+            CameraPickerView { image in
+                showsCamera = false
+                guard let image else {
+                    return
+                }
+                processImage(image, feature.kind)
+            }
+            .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showsRecording) {
+            VoiceRecordingView(
+                finish: { url in
+                    showsRecording = false
+                    loadAudioFile(url)
+                },
+                cancel: {
+                    showsRecording = false
+                }
+            )
+        }
+        .fileImporter(
+            isPresented: $showsFileImporter,
+            allowedContentTypes: activeFileImporterContentTypes,
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileImport(result)
+        }
+        .alert("이미지 선택 실패", isPresented: Binding(
+            get: { localError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    localError = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(localError ?? "")
+        }
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: showsImageSourceDialog)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: showsMeetingModeDialog)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: showsAudioSourceDialog)
+    }
+
+    @ViewBuilder
+    private var actionPickerOverlay: some View {
+        if showsImageSourceDialog {
+            UtilityActionPickerOverlay(
+                title: "이미지 선택",
+                message: "\(feature.title)에 사용할 이미지를 선택하세요.",
+                options: [
+                    UtilityActionPickerOption(
+                        title: "사진첩에서 가져오기",
+                        subtitle: "저장된 사진에서 선택",
+                        systemImage: "photo.on.rectangle"
+                    ) {
+                        dismissActionPickers()
+                        presentAfterPickerDismiss {
+                            showsPhotoPicker = true
+                        }
+                    },
+                    UtilityActionPickerOption(
+                        title: "카메라로 찍기",
+                        subtitle: "새 사진을 촬영",
+                        systemImage: "camera"
+                    ) {
+                        dismissActionPickers()
+                        presentAfterPickerDismiss {
+                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                showsCamera = true
+                            } else {
+                                localError = "이 기기에서는 카메라를 사용할 수 없습니다."
+                            }
+                        }
+                    }
+                ],
+                dismiss: dismissActionPickers
+            )
+        } else if showsMeetingModeDialog {
+            UtilityActionPickerOverlay(
+                title: "결과 선택",
+                message: "회의 음성을 어떤 형태로 정리할까요?",
+                options: MeetingSummaryMode.allCases.map { mode in
+                    UtilityActionPickerOption(
+                        title: mode.title,
+                        subtitle: mode.description,
+                        systemImage: iconName(for: mode)
+                    ) {
+                        selectedMeetingMode = mode
+                        dismissActionPickers()
+                        presentAfterPickerDismiss {
+                            showsAudioSourceDialog = true
+                        }
+                    }
+                },
+                dismiss: dismissActionPickers
+            )
+        } else if showsAudioSourceDialog {
+            UtilityActionPickerOverlay(
+                title: "음성 선택",
+                message: "분석할 회의 음성을 준비하세요.",
+                options: [
+                    UtilityActionPickerOption(
+                        title: "바로 녹음",
+                        subtitle: "지금 회의를 녹음",
+                        systemImage: "waveform"
+                    ) {
+                        dismissActionPickers()
+                        presentAfterPickerDismiss {
+                            showsRecording = true
+                        }
+                    },
+                    UtilityActionPickerOption(
+                        title: "음성 파일 가져오기",
+                        subtitle: "기존 오디오 파일 선택",
+                        systemImage: "folder"
+                    ) {
+                        dismissActionPickers()
+                        activeFileImporter = .audio
+                        presentAfterPickerDismiss {
+                            showsFileImporter = true
+                        }
+                    }
+                ],
+                dismiss: dismissActionPickers
+            )
+        }
+    }
+
+    private var bottomAction: some View {
+        VStack(spacing: 10) {
+            Button {
+                if feature.isAvailable && !isProcessing {
+                    startFeature()
+                }
+            } label: {
+                Text(feature.isAvailable ? (isProcessing ? "분석 중" : "시작") : "준비 중")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(feature.isAvailable && !isProcessing ? .white : NoteFlowDesign.mute)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 58)
+                    .background(buttonBackground, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(.white.opacity(feature.isAvailable && !isProcessing ? 0.26 : 0), lineWidth: 1)
+                    )
+                    .shadow(
+                        color: feature.isAvailable && !isProcessing ? feature.kind.ambientColors[0].opacity(0.24) : .clear,
+                        radius: 18,
+                        x: 0,
+                        y: 10
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(!feature.isAvailable || isProcessing)
+        }
+        .padding(.top, 4)
+    }
+
+    private func startFeature() {
+        switch feature.kind {
+        case .receipt, .businessCard, .handwritingOCR, .documentScan:
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                showsImageSourceDialog = true
+            }
+        case .meetingSummary:
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                showsMeetingModeDialog = true
+            }
+        case .fileSummary:
+            activeFileImporter = .fileSummary
+            showsFileImporter = true
+        }
+    }
+
+    private func dismissActionPickers() {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+            showsImageSourceDialog = false
+            showsMeetingModeDialog = false
+            showsAudioSourceDialog = false
+        }
+    }
+
+    private func presentAfterPickerDismiss(_ action: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            action()
+        }
+    }
+
+    private func iconName(for mode: MeetingSummaryMode) -> String {
+        switch mode {
+        case .transcript:
+            return "text.alignleft"
+        case .summary:
+            return "text.badge.checkmark"
+        case .transcriptAndSummary:
+            return "doc.text.magnifyingglass"
+        }
+    }
+
+    private var buttonBackground: AnyShapeStyle {
+        if feature.isAvailable && !isProcessing {
+            AnyShapeStyle(LinearGradient(
+                colors: [NoteFlowDesign.ink, NoteFlowDesign.charcoal],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ))
+        } else {
+            AnyShapeStyle(NoteFlowDesign.softCloud)
+        }
+    }
+
+    private func loadPhotoItem(_ item: PhotosPickerItem?) {
+        guard let item else {
+            return
+        }
+
+        Task {
+            defer {
+                Task { @MainActor in
+                    selectedPhotoItem = nil
+                }
+            }
+
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    await MainActor.run {
+                        localError = "이미지를 불러오지 못했습니다."
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    processImage(image, feature.kind)
+                }
+            } catch {
+                await MainActor.run {
+                    localError = "이미지를 불러오지 못했습니다."
+                }
+            }
+        }
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        defer {
+            activeFileImporter = nil
+        }
+
+        do {
+            guard let url = try result.get().first else {
+                return
+            }
+
+            switch activeFileImporter {
+            case .audio:
+                loadAudioFile(url)
+            case .fileSummary:
+                processFile(url)
+            case nil:
+                return
+            }
+        } catch {
+            switch activeFileImporter {
+            case .audio:
+                localError = "음성 파일을 불러오지 못했습니다."
+            case .fileSummary:
+                localError = "파일을 불러오지 못했습니다."
+            case nil:
+                return
+            }
+        }
+    }
+
+    private func loadAudioFile(_ url: URL) {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            guard !data.isEmpty else {
+                localError = "음성 파일이 비어 있습니다."
+                return
+            }
+            processAudio(data, mimeType(for: url), selectedMeetingMode)
+        } catch {
+            localError = "음성 파일을 불러오지 못했습니다."
+        }
+    }
+
+    private func mimeType(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "m4a", "mp4":
+            return "audio/mp4"
+        case "mp3":
+            return "audio/mpeg"
+        case "wav":
+            return "audio/wav"
+        case "aac":
+            return "audio/aac"
+        default:
+            return "audio/mp4"
+        }
+    }
+
+    private var activeFileImporterContentTypes: [UTType] {
+        switch activeFileImporter {
+        case .audio:
+            return audioContentTypes
+        case .fileSummary:
+            return fileSummaryContentTypes
+        case nil:
+            return [.item]
+        }
+    }
+
+    private var audioContentTypes: [UTType] {
+        var types: [UTType] = [.audio, .mpeg4Audio, .mp3, .wav, .item]
+        if let m4a = UTType(filenameExtension: "m4a") {
+            types.append(m4a)
+        }
+        if let aac = UTType(filenameExtension: "aac") {
+            types.append(aac)
+        }
+        return types
+    }
+
+    private var fileSummaryContentTypes: [UTType] {
+        var types: [UTType] = [.pdf, .plainText, .text, .rtf]
+        if let docx = UTType(filenameExtension: "docx") {
+            types.append(docx)
+        }
+        if let markdown = UTType(filenameExtension: "md") {
+            types.append(markdown)
+        }
+        return types
+    }
+}
+
+private enum UtilityFileImportPurpose {
+    case audio
+    case fileSummary
+}
+
+private struct UtilityActionPickerOption: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let action: () -> Void
+}
+
+private struct UtilityActionPickerOverlay: View {
+    let title: String
+    let message: String
+    let options: [UtilityActionPickerOption]
+    let dismiss: () -> Void
+    private let bottomPanelClearance: CGFloat = 108
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.12)
+                .ignoresSafeArea()
+                .onTapGesture(perform: dismiss)
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(title)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(NoteFlowDesign.ink)
+
+                        Text(message)
+                            .font(.subheadline)
+                            .foregroundStyle(NoteFlowDesign.mute)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 10)
+
+                    Button(action: dismiss) {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(NoteFlowDesign.mute)
+                            .frame(width: 30, height: 30)
+                            .background(NoteFlowDesign.softCloud, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("닫기")
+                }
+
+                VStack(spacing: 10) {
+                    ForEach(options) { option in
+                        Button(action: option.action) {
+                            HStack(spacing: 12) {
+                                Image(systemName: option.systemImage)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(NoteFlowDesign.ink)
+                                    .frame(width: 38, height: 38)
+                                    .background(NoteFlowDesign.canvas, in: Circle())
+                                    .overlay(
+                                        Circle()
+                                            .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
+                                    )
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(option.title)
+                                        .font(.headline.weight(.semibold))
+                                        .foregroundStyle(NoteFlowDesign.ink)
+
+                                    Text(option.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(NoteFlowDesign.mute)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                Spacer(minLength: 8)
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(NoteFlowDesign.hairline)
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(NoteFlowDesign.softCloud, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            .fill(NoteFlowDesign.canvas.opacity(0.82))
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(.white.opacity(0.72), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.12), radius: 30, x: 0, y: 18)
+            .padding(.horizontal, 18)
+            .padding(.bottom, bottomPanelClearance)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(true)
+    }
+}
+
+private struct UtilityFeatureAmbientBackground: View {
+    let colors: [Color]
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            NoteFlowDesign.canvas
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [colors[safe: 0].opacity(0.22), .clear],
+                        center: .center,
+                        startRadius: 8,
+                        endRadius: 210
+                    )
+                )
+                .frame(width: 360, height: 360)
+                .offset(x: animate ? 110 : -120, y: animate ? -190 : -120)
+                .scaleEffect(animate ? 1.08 : 0.9)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [colors[safe: 1].opacity(0.18), .clear],
+                        center: .center,
+                        startRadius: 8,
+                        endRadius: 240
+                    )
+                )
+                .frame(width: 420, height: 420)
+                .offset(x: animate ? -120 : 110, y: animate ? 120 : 210)
+                .scaleEffect(animate ? 0.9 : 1.12)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [colors[safe: 2].opacity(0.14), .clear],
+                        center: .center,
+                        startRadius: 6,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 300, height: 300)
+                .offset(x: animate ? 46 : -36, y: animate ? 6 : -18)
+                .scaleEffect(animate ? 1.12 : 0.88)
+        }
+        .blur(radius: 28)
+        .saturation(1.08)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 3.8).repeatForever(autoreverses: true)) {
+                animate = true
+            }
+        }
+    }
+}
+
+private struct UtilityFeatureHero: View {
+    let feature: UtilityFeature
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            icon
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text(feature.kind.accentLabel.uppercased())
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(NoteFlowDesign.mute)
+
+                Text(feature.title)
+                    .font(.system(size: 38, weight: .black))
+                    .foregroundStyle(NoteFlowDesign.ink)
+                    .tracking(0)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(feature.description)
+                    .font(.system(size: 17, weight: .regular))
+                    .lineSpacing(5)
+                    .foregroundStyle(NoteFlowDesign.charcoal)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.top, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var icon: some View {
+        ZStack {
+            Circle()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    feature.kind.ambientColors[0].opacity(0.22),
+                                    feature.kind.ambientColors[1].opacity(0.10),
+                                    .white.opacity(0.36)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(0.58), lineWidth: 1)
+                )
+                .shadow(color: feature.kind.ambientColors[0].opacity(0.18), radius: 24, x: 0, y: 12)
+
+            Image(systemName: feature.systemImage)
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(NoteFlowDesign.ink)
+        }
+        .frame(width: 88, height: 88)
+    }
+}
+
+private extension Array where Element == Color {
+    subscript(safe index: Int) -> Color {
+        guard indices.contains(index) else {
+            return .clear
+        }
+        return self[index]
+    }
+}
+
+private extension UIImage {
+    func normalizedJPEGData(maxDimension: CGFloat) -> Data? {
+        let longestSide = max(size.width, size.height)
+        let scale = longestSide > maxDimension ? maxDimension / longestSide : 1
+        let targetSize = CGSize(width: size.width * scale, height: size.height * scale)
+
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let rendered = renderer.image { _ in
+            draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return rendered.jpegData(compressionQuality: 0.86)
+    }
+}
+
+#Preview {
+    NavigationStack {
+        UtilitiesView(
+            saveOCRResult: { _ in },
+            saveMeetingSummaryResult: { _ in },
+            saveReceiptScanResult: { _ in },
+            saveBusinessCardScanResult: { _ in },
+            saveDocumentScanResult: { _ in },
+            saveFileSummaryResult: { _ in }
+        )
+    }
+}

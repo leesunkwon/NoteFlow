@@ -1,0 +1,8 @@
+.DS_Store
+
+# Local secrets
+LocalMind/Config/Secrets.xcconfig
+
+# Xcode user data
+**/xcuserdata/
+*.xcuserstate
