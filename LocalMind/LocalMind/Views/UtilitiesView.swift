@@ -29,6 +29,18 @@ struct UtilitiesView: View {
     @State private var businessCardError: String?
     @State private var documentScanError: String?
     @State private var fileSummaryError: String?
+    @State private var ocrTask: Task<Void, Never>?
+    @State private var meetingTask: Task<Void, Never>?
+    @State private var receiptTask: Task<Void, Never>?
+    @State private var businessCardTask: Task<Void, Never>?
+    @State private var documentScanTask: Task<Void, Never>?
+    @State private var fileSummaryTask: Task<Void, Never>?
+    @State private var ocrTaskID: UUID?
+    @State private var meetingTaskID: UUID?
+    @State private var receiptTaskID: UUID?
+    @State private var businessCardTaskID: UUID?
+    @State private var documentScanTaskID: UUID?
+    @State private var fileSummaryTaskID: UUID?
 
     private let features: [UtilityFeature] = [
         UtilityFeature(
@@ -118,22 +130,40 @@ struct UtilitiesView: View {
             )
         }
         .fullScreenCover(isPresented: $isProcessingOCR) {
-            UtilityAIProcessingView(message: "필기를 읽고 있어요")
+            UtilityAIProcessingView(
+                message: "필기를 읽고 있어요",
+                cancel: { cancelProcessing(.handwritingOCR) }
+            )
         }
         .fullScreenCover(isPresented: $isProcessingMeeting) {
-            UtilityAIProcessingView(message: "음성을 정리하고 있어요")
+            UtilityAIProcessingView(
+                message: "음성을 정리하고 있어요",
+                cancel: { cancelProcessing(.meetingSummary) }
+            )
         }
         .fullScreenCover(isPresented: $isProcessingReceipt) {
-            UtilityAIProcessingView(message: "영수증을 읽고 있어요")
+            UtilityAIProcessingView(
+                message: "영수증을 읽고 있어요",
+                cancel: { cancelProcessing(.receipt) }
+            )
         }
         .fullScreenCover(isPresented: $isProcessingBusinessCard) {
-            UtilityAIProcessingView(message: "명함을 읽고 있어요")
+            UtilityAIProcessingView(
+                message: "명함을 읽고 있어요",
+                cancel: { cancelProcessing(.businessCard) }
+            )
         }
         .fullScreenCover(isPresented: $isProcessingDocumentScan) {
-            UtilityAIProcessingView(message: "문서를 읽고 있어요")
+            UtilityAIProcessingView(
+                message: "문서를 읽고 있어요",
+                cancel: { cancelProcessing(.documentScan) }
+            )
         }
         .fullScreenCover(isPresented: $isProcessingFileSummary) {
-            UtilityAIProcessingView(message: "파일을 정리하고 있어요")
+            UtilityAIProcessingView(
+                message: "파일을 정리하고 있어요",
+                cancel: { cancelProcessing(.fileSummary) }
+            )
         }
         .sheet(item: $receiptPreview) { result in
             ReceiptScanPreviewSheet(
@@ -298,20 +328,32 @@ struct UtilitiesView: View {
 
         isProcessingOCR = true
         ocrError = nil
+        let taskID = UUID()
+        ocrTaskID = taskID
 
-        Task {
+        ocrTask = Task {
             do {
                 let result = try await GeminiHandwritingOCRService.recognize(
                     imageData: imageData,
                     mimeType: "image/jpeg"
                 )
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard ocrTaskID == taskID else {
+                        return
+                    }
                     ocrPreview = result
-                    isProcessingOCR = false
+                    finishProcessing(.handwritingOCR)
                 }
             } catch {
                 await MainActor.run {
-                    isProcessingOCR = false
+                    guard ocrTaskID == taskID else {
+                        return
+                    }
+                    finishProcessing(.handwritingOCR)
+                    guard !isCancellationError(error) else {
+                        return
+                    }
                     ocrError = GeminiServiceError.message(
                         for: error,
                         fallback: "손글씨를 인식하지 못했습니다. 이미지를 다시 선택해 주세요."
@@ -328,20 +370,32 @@ struct UtilitiesView: View {
 
         isProcessingReceipt = true
         receiptError = nil
+        let taskID = UUID()
+        receiptTaskID = taskID
 
-        Task {
+        receiptTask = Task {
             do {
                 let result = try await GeminiReceiptScanService.scan(
                     imageData: imageData,
                     mimeType: "image/jpeg"
                 )
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard receiptTaskID == taskID else {
+                        return
+                    }
                     receiptPreview = result
-                    isProcessingReceipt = false
+                    finishProcessing(.receipt)
                 }
             } catch {
                 await MainActor.run {
-                    isProcessingReceipt = false
+                    guard receiptTaskID == taskID else {
+                        return
+                    }
+                    finishProcessing(.receipt)
+                    guard !isCancellationError(error) else {
+                        return
+                    }
                     receiptError = GeminiServiceError.message(
                         for: error,
                         fallback: "영수증을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
@@ -358,20 +412,32 @@ struct UtilitiesView: View {
 
         isProcessingBusinessCard = true
         businessCardError = nil
+        let taskID = UUID()
+        businessCardTaskID = taskID
 
-        Task {
+        businessCardTask = Task {
             do {
                 let result = try await GeminiBusinessCardScanService.scan(
                     imageData: imageData,
                     mimeType: "image/jpeg"
                 )
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard businessCardTaskID == taskID else {
+                        return
+                    }
                     businessCardPreview = result
-                    isProcessingBusinessCard = false
+                    finishProcessing(.businessCard)
                 }
             } catch {
                 await MainActor.run {
-                    isProcessingBusinessCard = false
+                    guard businessCardTaskID == taskID else {
+                        return
+                    }
+                    finishProcessing(.businessCard)
+                    guard !isCancellationError(error) else {
+                        return
+                    }
                     businessCardError = GeminiServiceError.message(
                         for: error,
                         fallback: "명함을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
@@ -388,20 +454,32 @@ struct UtilitiesView: View {
 
         isProcessingDocumentScan = true
         documentScanError = nil
+        let taskID = UUID()
+        documentScanTaskID = taskID
 
-        Task {
+        documentScanTask = Task {
             do {
                 let result = try await GeminiDocumentScanService.scan(
                     imageData: imageData,
                     mimeType: "image/jpeg"
                 )
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard documentScanTaskID == taskID else {
+                        return
+                    }
                     documentScanPreview = result
-                    isProcessingDocumentScan = false
+                    finishProcessing(.documentScan)
                 }
             } catch {
                 await MainActor.run {
-                    isProcessingDocumentScan = false
+                    guard documentScanTaskID == taskID else {
+                        return
+                    }
+                    finishProcessing(.documentScan)
+                    guard !isCancellationError(error) else {
+                        return
+                    }
                     documentScanError = GeminiServiceError.message(
                         for: error,
                         fallback: "문서를 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
@@ -436,8 +514,10 @@ struct UtilitiesView: View {
 
         isProcessingFileSummary = true
         fileSummaryError = nil
+        let taskID = UUID()
+        fileSummaryTaskID = taskID
 
-        Task {
+        fileSummaryTask = Task {
             do {
                 let result = try await GeminiFileSummaryService.summarize(
                     fileName: input.fileName,
@@ -445,13 +525,23 @@ struct UtilitiesView: View {
                     text: input.text,
                     fileData: input.text.isEmpty ? input.data : nil
                 )
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard fileSummaryTaskID == taskID else {
+                        return
+                    }
                     fileSummaryPreview = result
-                    isProcessingFileSummary = false
+                    finishProcessing(.fileSummary)
                 }
             } catch {
                 await MainActor.run {
-                    isProcessingFileSummary = false
+                    guard fileSummaryTaskID == taskID else {
+                        return
+                    }
+                    finishProcessing(.fileSummary)
+                    guard !isCancellationError(error) else {
+                        return
+                    }
                     fileSummaryError = GeminiServiceError.message(
                         for: error,
                         fallback: "파일을 요약하지 못했습니다. 파일 형식이나 내용을 확인해 주세요."
@@ -468,21 +558,33 @@ struct UtilitiesView: View {
 
         isProcessingMeeting = true
         meetingError = nil
+        let taskID = UUID()
+        meetingTaskID = taskID
 
-        Task {
+        meetingTask = Task {
             do {
                 let result = try await GeminiMeetingSummaryService.summarize(
                     audioData: data,
                     mimeType: mimeType,
                     mode: mode
                 )
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard meetingTaskID == taskID else {
+                        return
+                    }
                     meetingPreview = result
-                    isProcessingMeeting = false
+                    finishProcessing(.meetingSummary)
                 }
             } catch {
                 await MainActor.run {
-                    isProcessingMeeting = false
+                    guard meetingTaskID == taskID else {
+                        return
+                    }
+                    finishProcessing(.meetingSummary)
+                    guard !isCancellationError(error) else {
+                        return
+                    }
                     meetingError = GeminiServiceError.message(
                         for: error,
                         fallback: "회의 음성을 요약하지 못했습니다. 파일이나 녹음 상태를 확인해 주세요."
@@ -524,6 +626,68 @@ struct UtilitiesView: View {
         case .fileSummary:
             break
         }
+    }
+
+    private func cancelProcessing(_ kind: UtilityFeatureKind) {
+        task(for: kind)?.cancel()
+        finishProcessing(kind)
+    }
+
+    private func finishProcessing(_ kind: UtilityFeatureKind) {
+        switch kind {
+        case .receipt:
+            receiptTask = nil
+            receiptTaskID = nil
+            isProcessingReceipt = false
+        case .businessCard:
+            businessCardTask = nil
+            businessCardTaskID = nil
+            isProcessingBusinessCard = false
+        case .handwritingOCR:
+            ocrTask = nil
+            ocrTaskID = nil
+            isProcessingOCR = false
+        case .meetingSummary:
+            meetingTask = nil
+            meetingTaskID = nil
+            isProcessingMeeting = false
+        case .documentScan:
+            documentScanTask = nil
+            documentScanTaskID = nil
+            isProcessingDocumentScan = false
+        case .fileSummary:
+            fileSummaryTask = nil
+            fileSummaryTaskID = nil
+            isProcessingFileSummary = false
+        }
+    }
+
+    private func task(for kind: UtilityFeatureKind) -> Task<Void, Never>? {
+        switch kind {
+        case .receipt:
+            return receiptTask
+        case .businessCard:
+            return businessCardTask
+        case .handwritingOCR:
+            return ocrTask
+        case .meetingSummary:
+            return meetingTask
+        case .documentScan:
+            return documentScanTask
+        case .fileSummary:
+            return fileSummaryTask
+        }
+    }
+
+    private func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+        if let geminiError = error as? GeminiServiceError,
+           case .network(.cancelled) = geminiError {
+            return true
+        }
+        return false
     }
 }
 
