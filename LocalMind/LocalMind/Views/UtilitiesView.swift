@@ -41,6 +41,12 @@ struct UtilitiesView: View {
     @State private var businessCardTaskID: UUID?
     @State private var documentScanTaskID: UUID?
     @State private var fileSummaryTaskID: UUID?
+    @State private var ocrStage: AIProcessingStage = .preparingInput
+    @State private var meetingStage: AIProcessingStage = .preparingInput
+    @State private var receiptStage: AIProcessingStage = .preparingInput
+    @State private var businessCardStage: AIProcessingStage = .preparingInput
+    @State private var documentScanStage: AIProcessingStage = .preparingInput
+    @State private var fileSummaryStage: AIProcessingStage = .preparingInput
 
     private let features: [UtilityFeature] = [
         UtilityFeature(
@@ -131,37 +137,37 @@ struct UtilitiesView: View {
         }
         .fullScreenCover(isPresented: $isProcessingOCR) {
             UtilityAIProcessingView(
-                message: "필기를 읽고 있어요",
+                message: processingMessage(for: .handwritingOCR),
                 cancel: { cancelProcessing(.handwritingOCR) }
             )
         }
         .fullScreenCover(isPresented: $isProcessingMeeting) {
             UtilityAIProcessingView(
-                message: "음성을 정리하고 있어요",
+                message: processingMessage(for: .meetingSummary),
                 cancel: { cancelProcessing(.meetingSummary) }
             )
         }
         .fullScreenCover(isPresented: $isProcessingReceipt) {
             UtilityAIProcessingView(
-                message: "영수증을 읽고 있어요",
+                message: processingMessage(for: .receipt),
                 cancel: { cancelProcessing(.receipt) }
             )
         }
         .fullScreenCover(isPresented: $isProcessingBusinessCard) {
             UtilityAIProcessingView(
-                message: "명함을 읽고 있어요",
+                message: processingMessage(for: .businessCard),
                 cancel: { cancelProcessing(.businessCard) }
             )
         }
         .fullScreenCover(isPresented: $isProcessingDocumentScan) {
             UtilityAIProcessingView(
-                message: "문서를 읽고 있어요",
+                message: processingMessage(for: .documentScan),
                 cancel: { cancelProcessing(.documentScan) }
             )
         }
         .fullScreenCover(isPresented: $isProcessingFileSummary) {
             UtilityAIProcessingView(
-                message: "파일을 정리하고 있어요",
+                message: processingMessage(for: .fileSummary),
                 cancel: { cancelProcessing(.fileSummary) }
             )
         }
@@ -330,14 +336,18 @@ struct UtilitiesView: View {
         ocrError = nil
         let taskID = UUID()
         ocrTaskID = taskID
+        setProcessingStage(.preparingInput, for: .handwritingOCR)
 
         ocrTask = Task {
             do {
+                let updateStage = stageUpdater(for: .handwritingOCR, taskID: taskID)
                 let result = try await GeminiHandwritingOCRService.recognize(
                     imageData: imageData,
-                    mimeType: "image/jpeg"
+                    mimeType: "image/jpeg",
+                    updateStage: updateStage
                 )
                 try Task.checkCancellation()
+                await updateStage(.preparingPreview)
                 await MainActor.run {
                     guard ocrTaskID == taskID else {
                         return
@@ -372,14 +382,18 @@ struct UtilitiesView: View {
         receiptError = nil
         let taskID = UUID()
         receiptTaskID = taskID
+        setProcessingStage(.preparingInput, for: .receipt)
 
         receiptTask = Task {
             do {
+                let updateStage = stageUpdater(for: .receipt, taskID: taskID)
                 let result = try await GeminiReceiptScanService.scan(
                     imageData: imageData,
-                    mimeType: "image/jpeg"
+                    mimeType: "image/jpeg",
+                    updateStage: updateStage
                 )
                 try Task.checkCancellation()
+                await updateStage(.preparingPreview)
                 await MainActor.run {
                     guard receiptTaskID == taskID else {
                         return
@@ -414,14 +428,18 @@ struct UtilitiesView: View {
         businessCardError = nil
         let taskID = UUID()
         businessCardTaskID = taskID
+        setProcessingStage(.preparingInput, for: .businessCard)
 
         businessCardTask = Task {
             do {
+                let updateStage = stageUpdater(for: .businessCard, taskID: taskID)
                 let result = try await GeminiBusinessCardScanService.scan(
                     imageData: imageData,
-                    mimeType: "image/jpeg"
+                    mimeType: "image/jpeg",
+                    updateStage: updateStage
                 )
                 try Task.checkCancellation()
+                await updateStage(.preparingPreview)
                 await MainActor.run {
                     guard businessCardTaskID == taskID else {
                         return
@@ -456,14 +474,18 @@ struct UtilitiesView: View {
         documentScanError = nil
         let taskID = UUID()
         documentScanTaskID = taskID
+        setProcessingStage(.preparingInput, for: .documentScan)
 
         documentScanTask = Task {
             do {
+                let updateStage = stageUpdater(for: .documentScan, taskID: taskID)
                 let result = try await GeminiDocumentScanService.scan(
                     imageData: imageData,
-                    mimeType: "image/jpeg"
+                    mimeType: "image/jpeg",
+                    updateStage: updateStage
                 )
                 try Task.checkCancellation()
+                await updateStage(.preparingPreview)
                 await MainActor.run {
                     guard documentScanTaskID == taskID else {
                         return
@@ -494,38 +516,50 @@ struct UtilitiesView: View {
             return
         }
 
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer {
-            if didAccess {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        let input: FileSummaryInput
-        do {
-            input = try FileSummaryInputReader.read(url: url)
-        } catch {
-            fileSummaryError = GeminiServiceError.message(
-                for: error,
-                fallback: "파일을 읽을 수 없습니다. PDF, TXT, RTF, DOCX 파일을 선택해 주세요."
-            )
-            return
-        }
-
         isProcessingFileSummary = true
         fileSummaryError = nil
         let taskID = UUID()
         fileSummaryTaskID = taskID
+        setProcessingStage(.preparingInput, for: .fileSummary)
 
         fileSummaryTask = Task {
             do {
+                let updateStage = stageUpdater(for: .fileSummary, taskID: taskID)
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer {
+                    if didAccess {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+                let input: FileSummaryInput
+                do {
+                    input = try FileSummaryInputReader.read(url: url)
+                } catch {
+                    await MainActor.run {
+                        guard fileSummaryTaskID == taskID else {
+                            return
+                        }
+                        finishProcessing(.fileSummary)
+                        guard !isCancellationError(error) else {
+                            return
+                        }
+                        fileSummaryError = GeminiServiceError.message(
+                            for: error,
+                            fallback: "파일을 읽을 수 없습니다. PDF, TXT, RTF, DOCX 파일을 선택해 주세요."
+                        )
+                    }
+                    return
+                }
+                try Task.checkCancellation()
                 let result = try await GeminiFileSummaryService.summarize(
                     fileName: input.fileName,
                     mimeType: input.mimeType,
                     text: input.text,
-                    fileData: input.text.isEmpty ? input.data : nil
+                    fileData: input.text.isEmpty ? input.data : nil,
+                    updateStage: updateStage
                 )
                 try Task.checkCancellation()
+                await updateStage(.preparingPreview)
                 await MainActor.run {
                     guard fileSummaryTaskID == taskID else {
                         return
@@ -560,15 +594,19 @@ struct UtilitiesView: View {
         meetingError = nil
         let taskID = UUID()
         meetingTaskID = taskID
+        setProcessingStage(.preparingInput, for: .meetingSummary)
 
         meetingTask = Task {
             do {
+                let updateStage = stageUpdater(for: .meetingSummary, taskID: taskID)
                 let result = try await GeminiMeetingSummaryService.summarize(
                     audioData: data,
                     mimeType: mimeType,
-                    mode: mode
+                    mode: mode,
+                    updateStage: updateStage
                 )
                 try Task.checkCancellation()
+                await updateStage(.preparingPreview)
                 await MainActor.run {
                     guard meetingTaskID == taskID else {
                         return
@@ -611,6 +649,82 @@ struct UtilitiesView: View {
         }
     }
 
+    private func processingMessage(for kind: UtilityFeatureKind) -> String {
+        let stage = processingStage(for: kind)
+        switch stage {
+        case .preparingInput:
+            return kind.preparingInputMessage
+        case .requestingGemini:
+            return "Gemini에 요청하고 있어요"
+        case .parsingResponse:
+            return "결과를 정리하고 있어요"
+        case .preparingPreview:
+            return "미리보기를 준비하고 있어요"
+        }
+    }
+
+    private func processingStage(for kind: UtilityFeatureKind) -> AIProcessingStage {
+        switch kind {
+        case .receipt:
+            return receiptStage
+        case .businessCard:
+            return businessCardStage
+        case .handwritingOCR:
+            return ocrStage
+        case .meetingSummary:
+            return meetingStage
+        case .documentScan:
+            return documentScanStage
+        case .fileSummary:
+            return fileSummaryStage
+        }
+    }
+
+    private func setProcessingStage(_ stage: AIProcessingStage, for kind: UtilityFeatureKind) {
+        switch kind {
+        case .receipt:
+            receiptStage = stage
+        case .businessCard:
+            businessCardStage = stage
+        case .handwritingOCR:
+            ocrStage = stage
+        case .meetingSummary:
+            meetingStage = stage
+        case .documentScan:
+            documentScanStage = stage
+        case .fileSummary:
+            fileSummaryStage = stage
+        }
+    }
+
+    private func stageUpdater(for kind: UtilityFeatureKind, taskID: UUID) -> (AIProcessingStage) async -> Void {
+        { stage in
+            await MainActor.run {
+                guard currentTaskID(for: kind) == taskID else {
+                    return
+                }
+                setProcessingStage(stage, for: kind)
+            }
+        }
+    }
+
+    private func currentTaskID(for kind: UtilityFeatureKind) -> UUID? {
+        switch kind {
+        case .receipt:
+            return receiptTaskID
+        case .businessCard:
+            return businessCardTaskID
+        case .handwritingOCR:
+            return ocrTaskID
+        case .meetingSummary:
+            return meetingTaskID
+        case .documentScan:
+            return documentScanTaskID
+        case .fileSummary:
+            return fileSummaryTaskID
+        }
+    }
+
     private func setImageProcessingError(for kind: UtilityFeatureKind, message: String) {
         switch kind {
         case .receipt:
@@ -638,26 +752,32 @@ struct UtilitiesView: View {
         case .receipt:
             receiptTask = nil
             receiptTaskID = nil
+            receiptStage = .preparingInput
             isProcessingReceipt = false
         case .businessCard:
             businessCardTask = nil
             businessCardTaskID = nil
+            businessCardStage = .preparingInput
             isProcessingBusinessCard = false
         case .handwritingOCR:
             ocrTask = nil
             ocrTaskID = nil
+            ocrStage = .preparingInput
             isProcessingOCR = false
         case .meetingSummary:
             meetingTask = nil
             meetingTaskID = nil
+            meetingStage = .preparingInput
             isProcessingMeeting = false
         case .documentScan:
             documentScanTask = nil
             documentScanTaskID = nil
+            documentScanStage = .preparingInput
             isProcessingDocumentScan = false
         case .fileSummary:
             fileSummaryTask = nil
             fileSummaryTaskID = nil
+            fileSummaryStage = .preparingInput
             isProcessingFileSummary = false
         }
     }
@@ -698,6 +818,17 @@ private enum UtilityFeatureKind {
     case businessCard
     case handwritingOCR
     case meetingSummary
+
+    var preparingInputMessage: String {
+        switch self {
+        case .receipt, .businessCard, .handwritingOCR, .documentScan:
+            return "이미지를 준비하고 있어요"
+        case .meetingSummary:
+            return "음성을 준비하고 있어요"
+        case .fileSummary:
+            return "파일을 읽고 있어요"
+        }
+    }
 
     var ambientColors: [Color] {
         switch self {

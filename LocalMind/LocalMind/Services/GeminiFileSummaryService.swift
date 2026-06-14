@@ -111,7 +111,7 @@ enum GeminiFileSummaryService {
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
-    static func summarize(fileName: String, mimeType: String, text: String, fileData: Data?) async throws -> FileSummaryResult {
+    static func summarize(fileName: String, mimeType: String, text: String, fileData: Data?, updateStage: ((AIProcessingStage) async -> Void)? = nil) async throws -> FileSummaryResult {
         guard var components = URLComponents(string: endpoint) else {
             throw FileSummaryError.invalidURL
         }
@@ -148,7 +148,7 @@ enum GeminiFileSummaryService {
             generationConfig: FileSummaryGenerationConfig(responseMimeType: "application/json")
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
-        let data = try await GeminiServiceError.responseData(for: request)
+        let data = try await GeminiServiceError.responseData(for: request, updateStage: updateStage)
 
         let decoded = try GeminiServiceError.decode(FileSummaryGenerateContentResponse.self, from: data)
         guard let responseText = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),

@@ -11,7 +11,7 @@ enum GeminiHandwritingOCRService {
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
-    static func recognize(imageData: Data, mimeType: String) async throws -> HandwritingOCRResult {
+    static func recognize(imageData: Data, mimeType: String, updateStage: ((AIProcessingStage) async -> Void)? = nil) async throws -> HandwritingOCRResult {
         guard var components = URLComponents(string: endpoint) else {
             throw HandwritingOCRError.invalidURL
         }
@@ -62,7 +62,7 @@ enum GeminiHandwritingOCRService {
             generationConfig: GeminiOCRGenerationConfig(responseMimeType: "application/json")
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
-        let data = try await GeminiServiceError.responseData(for: request)
+        let data = try await GeminiServiceError.responseData(for: request, updateStage: updateStage)
 
         let decoded = try GeminiServiceError.decode(GeminiOCRGenerateContentResponse.self, from: data)
         guard let text = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),

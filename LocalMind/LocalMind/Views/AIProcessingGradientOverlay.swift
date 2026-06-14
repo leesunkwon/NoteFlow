@@ -113,7 +113,6 @@ struct UtilityAIProcessingView: View {
                     .foregroundStyle(NoteFlowDesign.ink.opacity(0.72))
                     .padding(.bottom, 120)
             }
-            .ignoresSafeArea()
         }
     }
 }
