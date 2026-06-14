@@ -16,7 +16,6 @@ struct BusinessCardScanResult: Identifiable {
 }
 
 enum GeminiBusinessCardScanService {
-    private static let apiKey = GeminiAPIKeyProvider.apiKey
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
@@ -24,6 +23,7 @@ enum GeminiBusinessCardScanService {
         guard var components = URLComponents(string: endpoint) else {
             throw BusinessCardScanError.invalidURL
         }
+        let apiKey = try GeminiAPIKeyProvider.requireAPIKey()
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
             throw BusinessCardScanError.invalidURL
@@ -80,14 +80,9 @@ enum GeminiBusinessCardScanService {
             generationConfig: BusinessCardGenerationConfig(responseMimeType: "application/json")
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
+        let data = try await GeminiServiceError.responseData(for: request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw BusinessCardScanError.requestFailed
-        }
-
-        let decoded = try JSONDecoder().decode(BusinessCardGenerateContentResponse.self, from: data)
+        let decoded = try GeminiServiceError.decode(BusinessCardGenerateContentResponse.self, from: data)
         guard let text = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw BusinessCardScanError.emptyResponse
@@ -102,7 +97,7 @@ enum GeminiBusinessCardScanService {
             throw BusinessCardScanError.invalidJSON
         }
 
-        let payload = try JSONDecoder().decode(BusinessCardPayload.self, from: data)
+        let payload = try GeminiServiceError.decode(BusinessCardPayload.self, from: data)
         let title = limited(plainText(payload.title), maxCount: 30)
         let name = plainText(payload.name)
         let company = plainText(payload.company)
@@ -273,11 +268,4 @@ private struct BusinessCardBlockPayload: Decodable {
     var indentLevel: Int?
     var isChecked: Bool?
     var tableData: [[String]]?
-}
-
-enum BusinessCardScanError: Error {
-    case invalidURL
-    case requestFailed
-    case emptyResponse
-    case invalidJSON
 }

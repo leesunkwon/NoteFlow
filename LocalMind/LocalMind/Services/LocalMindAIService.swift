@@ -441,7 +441,6 @@ private func cleanGeneratedPlainText(_ text: String) -> String {
 }
 
 private enum GeminiAIClient {
-    private static let apiKey = GeminiAPIKeyProvider.apiKey
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
@@ -479,7 +478,11 @@ private enum GeminiAIClient {
                 statusMessage: "Gemini로 정리 완료"
             )
         } catch {
-            return FallbackNoteAnalyzer.analyze(body, reason: "Gemini 응답 실패로 로컬 정리 사용")
+            let reason = GeminiServiceError.message(
+                for: error,
+                fallback: "Gemini 응답 실패로 로컬 정리 사용"
+            )
+            return FallbackNoteAnalyzer.analyze(body, reason: "\(reason) 로컬 정리를 사용했습니다.")
         }
     }
 
@@ -554,7 +557,11 @@ private enum GeminiAIClient {
                 statusMessage: "Gemini로 \(mode.title) 완료"
             )
         } catch {
-            return cleaned(FallbackWritingAssistant.write(body, mode: mode, reason: "Gemini 응답 실패로 로컬 글쓰기 사용"))
+            let reason = GeminiServiceError.message(
+                for: error,
+                fallback: "Gemini 응답 실패로 로컬 글쓰기 사용"
+            )
+            return cleaned(FallbackWritingAssistant.write(body, mode: mode, reason: "\(reason) 로컬 글쓰기를 사용했습니다."))
         }
     }
 
@@ -612,11 +619,15 @@ private enum GeminiAIClient {
                 statusMessage: "Gemini로 기타 명령 완료"
             )
         } catch {
+            let reason = GeminiServiceError.message(
+                for: error,
+                fallback: "명령 처리 실패"
+            )
             return WritingResult(
                 mode: .custom,
                 content: "",
                 usedFallback: true,
-                statusMessage: "명령 처리 실패"
+                statusMessage: reason
             )
         }
     }
@@ -625,6 +636,7 @@ private enum GeminiAIClient {
         guard var components = URLComponents(string: endpoint) else {
             throw GeminiError.invalidURL
         }
+        let apiKey = try GeminiAPIKeyProvider.requireAPIKey()
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
             throw GeminiError.invalidURL
@@ -643,14 +655,9 @@ private enum GeminiAIClient {
             generationConfig: GeminiGenerationConfig(responseMimeType: wantsJSON ? "application/json" : "text/plain")
         )
         request.httpBody = try JSONEncoder().encode(body)
+        let data = try await GeminiServiceError.responseData(for: request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw GeminiError.requestFailed
-        }
-
-        let decoded = try JSONDecoder().decode(GeminiGenerateContentResponse.self, from: data)
+        let decoded = try GeminiServiceError.decode(GeminiGenerateContentResponse.self, from: data)
         guard let text = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GeminiError.emptyResponse
@@ -664,7 +671,7 @@ private enum GeminiAIClient {
         guard let data = cleaned.data(using: .utf8) else {
             throw GeminiError.invalidJSON
         }
-        return try JSONDecoder().decode(GeminiAnalysisPayload.self, from: data)
+        return try GeminiServiceError.decode(GeminiAnalysisPayload.self, from: data)
     }
 
     private static func decodeWriting(from text: String) throws -> GeminiWritingPayload {
@@ -672,7 +679,7 @@ private enum GeminiAIClient {
         guard let data = cleaned.data(using: .utf8) else {
             throw GeminiError.invalidJSON
         }
-        return try JSONDecoder().decode(GeminiWritingPayload.self, from: data)
+        return try GeminiServiceError.decode(GeminiWritingPayload.self, from: data)
     }
 
     private static func cleanedJSONText(_ text: String) -> String {
@@ -750,11 +757,4 @@ private struct GeminiBlockPayload: Decodable {
     var isChecked: Bool?
     var tableData: [[String]]?
     var tableRows: [String]?
-}
-
-private enum GeminiError: Error {
-    case invalidURL
-    case requestFailed
-    case emptyResponse
-    case invalidJSON
 }

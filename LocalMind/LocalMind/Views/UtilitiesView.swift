@@ -312,7 +312,10 @@ struct UtilitiesView: View {
             } catch {
                 await MainActor.run {
                     isProcessingOCR = false
-                    ocrError = "손글씨를 인식하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    ocrError = GeminiServiceError.message(
+                        for: error,
+                        fallback: "손글씨를 인식하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    )
                 }
             }
         }
@@ -339,7 +342,10 @@ struct UtilitiesView: View {
             } catch {
                 await MainActor.run {
                     isProcessingReceipt = false
-                    receiptError = "영수증을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    receiptError = GeminiServiceError.message(
+                        for: error,
+                        fallback: "영수증을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    )
                 }
             }
         }
@@ -366,7 +372,10 @@ struct UtilitiesView: View {
             } catch {
                 await MainActor.run {
                     isProcessingBusinessCard = false
-                    businessCardError = "명함을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    businessCardError = GeminiServiceError.message(
+                        for: error,
+                        fallback: "명함을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    )
                 }
             }
         }
@@ -393,7 +402,10 @@ struct UtilitiesView: View {
             } catch {
                 await MainActor.run {
                     isProcessingDocumentScan = false
-                    documentScanError = "문서를 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    documentScanError = GeminiServiceError.message(
+                        for: error,
+                        fallback: "문서를 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
+                    )
                 }
             }
         }
@@ -415,7 +427,10 @@ struct UtilitiesView: View {
         do {
             input = try FileSummaryInputReader.read(url: url)
         } catch {
-            fileSummaryError = "파일을 읽을 수 없습니다. PDF, TXT, RTF, DOCX 파일을 선택해 주세요."
+            fileSummaryError = GeminiServiceError.message(
+                for: error,
+                fallback: "파일을 읽을 수 없습니다. PDF, TXT, RTF, DOCX 파일을 선택해 주세요."
+            )
             return
         }
 
@@ -437,7 +452,10 @@ struct UtilitiesView: View {
             } catch {
                 await MainActor.run {
                     isProcessingFileSummary = false
-                    fileSummaryError = "파일을 요약하지 못했습니다. 파일 형식이나 내용을 확인해 주세요."
+                    fileSummaryError = GeminiServiceError.message(
+                        for: error,
+                        fallback: "파일을 요약하지 못했습니다. 파일 형식이나 내용을 확인해 주세요."
+                    )
                 }
             }
         }
@@ -465,7 +483,10 @@ struct UtilitiesView: View {
             } catch {
                 await MainActor.run {
                     isProcessingMeeting = false
-                    meetingError = "회의 음성을 요약하지 못했습니다. 파일이나 녹음 상태를 확인해 주세요."
+                    meetingError = GeminiServiceError.message(
+                        for: error,
+                        fallback: "회의 음성을 요약하지 못했습니다. 파일이나 녹음 상태를 확인해 주세요."
+                    )
                 }
             }
         }

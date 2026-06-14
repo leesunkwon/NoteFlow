@@ -108,7 +108,6 @@ enum FileSummaryInputReader {
 }
 
 enum GeminiFileSummaryService {
-    private static let apiKey = GeminiAPIKeyProvider.apiKey
     private static let model = "gemini-3.1-flash-lite"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
@@ -116,6 +115,7 @@ enum GeminiFileSummaryService {
         guard var components = URLComponents(string: endpoint) else {
             throw FileSummaryError.invalidURL
         }
+        let apiKey = try GeminiAPIKeyProvider.requireAPIKey()
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
             throw FileSummaryError.invalidURL
@@ -148,14 +148,9 @@ enum GeminiFileSummaryService {
             generationConfig: FileSummaryGenerationConfig(responseMimeType: "application/json")
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
+        let data = try await GeminiServiceError.responseData(for: request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw FileSummaryError.requestFailed
-        }
-
-        let decoded = try JSONDecoder().decode(FileSummaryGenerateContentResponse.self, from: data)
+        let decoded = try GeminiServiceError.decode(FileSummaryGenerateContentResponse.self, from: data)
         guard let responseText = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),
               !responseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw FileSummaryError.emptyResponse
@@ -199,7 +194,7 @@ enum GeminiFileSummaryService {
             throw FileSummaryError.invalidJSON
         }
 
-        let payload = try JSONDecoder().decode(FileSummaryPayload.self, from: data)
+        let payload = try GeminiServiceError.decode(FileSummaryPayload.self, from: data)
         let title = limited(plainText(payload.title), maxCount: 30)
         let summary = plainText(payload.summary)
         let content = plainText(payload.content)
@@ -337,13 +332,4 @@ private struct FileSummaryBlockPayload: Decodable {
     var indentLevel: Int?
     var isChecked: Bool?
     var tableData: [[String]]?
-}
-
-enum FileSummaryError: Error {
-    case invalidURL
-    case requestFailed
-    case emptyResponse
-    case invalidJSON
-    case emptyFile
-    case unsupportedFile
 }

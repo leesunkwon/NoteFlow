@@ -9,4 +9,12 @@ enum GeminiAPIKeyProvider {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.hasPrefix("$(") ? "" : trimmed
     }
+
+    static func requireAPIKey() throws -> String {
+        let value = apiKey
+        guard !value.isEmpty else {
+            throw GeminiServiceError.missingAPIKey
+        }
+        return value
+    }
 }
