@@ -76,6 +76,7 @@ struct AIProcessingGradientOverlay: View {
 
 struct UtilityAIProcessingView: View {
     var message = "내용을 읽고 있어요"
+    var cancel: (() -> Void)?
 
     var body: some View {
         ZStack {
@@ -83,7 +84,29 @@ struct UtilityAIProcessingView: View {
                 .background(NoteFlowDesign.canvas.ignoresSafeArea())
 
             VStack {
-                Spacer()
+                HStack {
+                    Spacer()
+
+                    if let cancel {
+                        Button(action: cancel) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(NoteFlowDesign.ink.opacity(0.72))
+                                .frame(width: 42, height: 42)
+                                .background(.ultraThinMaterial, in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("AI 작업 취소")
+                    }
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+
+                Spacer(minLength: 0)
 
                 Text(message)
                     .font(.callout.weight(.semibold))
