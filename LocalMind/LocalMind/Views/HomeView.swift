@@ -72,6 +72,7 @@ struct HomeView: View {
     @State private var showsDeleteFolder = false
     @State private var showsTemplatePicker = false
     @State private var pendingTemplateToCreate: NoteTemplate?
+    @State private var refreshStatusMessage: String?
 
     private var activeNotes: [NotePage] {
         notes.filter { $0.deletedAt == nil }
@@ -161,6 +162,10 @@ struct HomeView: View {
 
     private var folderList: some View {
         List {
+            if let refreshStatusMessage {
+                refreshStatusRow(refreshStatusMessage)
+            }
+
             Section("폴더") {
                 ForEach(folders) { folder in
                     NavigationLink(value: NotesRoute.folder(folder)) {
@@ -230,6 +235,9 @@ struct HomeView: View {
         }
         .navigationTitle("폴더")
         .listStyle(.insetGrouped)
+        .refreshable {
+            await refreshCloudKitStatus()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -382,6 +390,27 @@ struct HomeView: View {
             persistenceError = "\(error.localizedDescription)\n\n\(String(describing: error))"
         }
     }
+
+    private func refreshStatusRow(_ message: String) -> some View {
+        Label(message, systemImage: "icloud")
+            .font(.caption)
+            .foregroundStyle(NoteFlowDesign.mute)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 22, bottom: 2, trailing: 22))
+    }
+
+    @MainActor
+    private func refreshCloudKitStatus() async {
+        refreshStatusMessage = "최신 데이터 확인 중"
+        let state = await NoteFlowCloudKitStatusService.currentState()
+        refreshStatusMessage = state.title
+
+        try? await Task.sleep(for: .seconds(2))
+        if refreshStatusMessage == state.title {
+            refreshStatusMessage = nil
+        }
+    }
 }
 
 struct NotesListView: View {
@@ -400,6 +429,7 @@ struct NotesListView: View {
     @State private var authenticatingNoteID: UUID?
     @State private var notesPendingPermanentDelete: [NotePage] = []
     @State private var showsPermanentDeleteConfirmation = false
+    @State private var refreshStatusMessage: String?
     @Namespace private var searchNamespace
 
     private var visibleNotes: [NotePage] {
@@ -421,6 +451,10 @@ struct NotesListView: View {
     var body: some View {
         ZStack {
             List {
+                if let refreshStatusMessage {
+                    refreshStatusRow(refreshStatusMessage)
+                }
+
                 Section {
                     SearchEntryPill(title: source.title, namespace: searchNamespace) {
                         withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
@@ -475,6 +509,9 @@ struct NotesListView: View {
             }
             .navigationTitle(source.title)
             .listStyle(.plain)
+            .refreshable {
+                await refreshCloudKitStatus()
+            }
             .scrollContentBackground(.hidden)
             .background(NoteFlowDesign.canvas)
 
@@ -693,6 +730,27 @@ struct NotesListView: View {
             try modelContext.save()
         } catch {
             persistenceError = "\(error.localizedDescription)\n\n\(String(describing: error))"
+        }
+    }
+
+    private func refreshStatusRow(_ message: String) -> some View {
+        Label(message, systemImage: "icloud")
+            .font(.caption)
+            .foregroundStyle(NoteFlowDesign.mute)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 10, leading: 18, bottom: 4, trailing: 18))
+    }
+
+    @MainActor
+    private func refreshCloudKitStatus() async {
+        refreshStatusMessage = "최신 데이터 확인 중"
+        let state = await NoteFlowCloudKitStatusService.currentState()
+        refreshStatusMessage = state.title
+
+        try? await Task.sleep(for: .seconds(2))
+        if refreshStatusMessage == state.title {
+            refreshStatusMessage = nil
         }
     }
 }

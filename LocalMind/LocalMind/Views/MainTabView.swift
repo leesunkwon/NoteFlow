@@ -27,7 +27,7 @@ struct MainTabView: View {
     @Query(sort: \NotePage.updatedAt, order: .reverse) private var notes: [NotePage]
     @AppStorage(TrashCleanupService.autoCleanupStorageKey) private var autoCleanupTrashAfter30Days = false
 
-    @State private var selectedTab: MainTab = .allNotes
+    @AppStorage("selectedMainTab") private var selectedTab: MainTab = .allNotes
     @State private var lastNonComposeTab: MainTab = .allNotes
     @State private var allNotesPath: [NotesRoute] = []
     @State private var favoritesPath: [NotesRoute] = []
@@ -100,6 +100,9 @@ struct MainTabView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active || phase == .background {
                 cleanupExpiredTrashIfNeeded()
+            }
+            if phase == .active {
+                refreshCloudKitStatus()
             }
         }
         .alert("저장 실패", isPresented: Binding(
@@ -176,6 +179,12 @@ struct MainTabView: View {
             try TrashCleanupService.cleanupExpiredTrash(notes: notes, modelContext: modelContext)
         } catch {
             persistenceError = "\(error.localizedDescription)\n\n\(String(describing: error))"
+        }
+    }
+
+    private func refreshCloudKitStatus() {
+        Task {
+            _ = await NoteFlowCloudKitStatusService.currentState()
         }
     }
 

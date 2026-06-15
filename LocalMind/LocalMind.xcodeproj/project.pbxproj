@@ -107,6 +107,17 @@
 				TargetAttributes = {
 					9F0F90492FD78EA000E8CBA6 = {
 						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -275,6 +286,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 9F0F90592FD78EA000E8CBA6 /* Shared.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LocalMind/LocalMind.entitlements;
@@ -305,6 +317,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 9F0F90592FD78EA000E8CBA6 /* Shared.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LocalMind/LocalMind.entitlements;

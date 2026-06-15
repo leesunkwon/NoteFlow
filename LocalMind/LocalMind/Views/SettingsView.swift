@@ -1,4 +1,3 @@
-import CloudKit
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -227,22 +226,23 @@ struct SettingsView: View {
 }
 
 private struct CloudBackupSettingsView: View {
-    private static let cloudKitContainerIdentifier = "iCloud.kotlinsun.LocalMind"
-
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Folder.updatedAt, order: .forward) private var folders: [Folder]
     @Query(sort: \NotePage.updatedAt, order: .reverse) private var notes: [NotePage]
     @Query(sort: \DeletedNoteTombstone.updatedAt, order: .reverse) private var deletedNoteTombstones: [DeletedNoteTombstone]
 
-    @State private var cloudKitState: CloudKitAccountState = .checking
+    @State private var cloudKitState: NoteFlowCloudKitAccountState = .checking
     @State private var backupDocument = NoteFlowBackupDocument()
     @State private var backupFileName = NoteFlowBackupService.defaultFileName()
     @State private var showsBackupExporter = false
     @State private var showsBackupImporter = false
     @State private var showsBackupExportWarning = false
+    @State private var showsForceUploadConfirmation = false
+    @State private var showsForceDownloadConfirmation = false
     @State private var importSummary: NoteFlowBackupSummary?
     @State private var backupMessage: String?
     @State private var backupError: String?
+    @State private var isForceBackupInProgress = false
 
     var body: some View {
         List {
@@ -296,6 +296,50 @@ private struct CloudBackupSettingsView: View {
                     .foregroundStyle(NoteFlowDesign.mute)
             }
 
+            Section("강제 백업") {
+                Button {
+                    showsForceUploadConfirmation = true
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("강제 업로드")
+                                .foregroundStyle(NoteFlowDesign.ink)
+                            Text("이 기기 데이터로 iCloud 백업 파일을 덮어씁니다.")
+                                .font(.caption)
+                                .foregroundStyle(NoteFlowDesign.mute)
+                        }
+                    } icon: {
+                        Image(systemName: "icloud.and.arrow.up")
+                            .foregroundStyle(NoteFlowDesign.ink)
+                    }
+                }
+                .disabled(isForceBackupInProgress)
+
+                Button(role: .destructive) {
+                    showsForceDownloadConfirmation = true
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("강제 불러오기")
+                                .foregroundStyle(.red)
+                            Text("iCloud 백업 파일로 이 기기 데이터를 전체 교체합니다.")
+                                .font(.caption)
+                                .foregroundStyle(NoteFlowDesign.mute)
+                        }
+                    } icon: {
+                        Image(systemName: "icloud.and.arrow.down")
+                            .foregroundStyle(.red)
+                    }
+                }
+                .disabled(isForceBackupInProgress)
+
+                if isForceBackupInProgress {
+                    Label("iCloud 백업 파일을 처리하고 있습니다.", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(NoteFlowDesign.mute)
+                }
+            }
+
             BottomTabBarListSpacer()
         }
         .navigationTitle("iCloud 및 백업")
@@ -340,6 +384,18 @@ private struct CloudBackupSettingsView: View {
             Button("내보내기", action: exportBackup)
         } message: {
             Text("백업 파일에는 잠긴 메모 내용과 첨부 파일도 포함됩니다. 파일을 저장할 위치를 신뢰할 수 있는지 확인하세요.")
+        }
+        .alert("강제 업로드할까요?", isPresented: $showsForceUploadConfirmation) {
+            Button("취소", role: .cancel) { }
+            Button("업로드", action: forceUploadBackup)
+        } message: {
+            Text("현재 이 기기 데이터를 고정 iCloud 백업 파일로 저장합니다. 기존 강제 백업 파일이 있다면 덮어씁니다.")
+        }
+        .alert("강제 불러오기를 실행할까요?", isPresented: $showsForceDownloadConfirmation) {
+            Button("취소", role: .cancel) { }
+            Button("전체 교체", role: .destructive, action: forceDownloadBackup)
+        } message: {
+            Text("iCloud 백업 파일로 현재 이 기기 데이터를 전체 교체합니다. 이 작업은 되돌릴 수 없습니다.")
         }
         .alert("완료", isPresented: Binding(
             get: { backupMessage != nil },
@@ -390,10 +446,8 @@ private struct CloudBackupSettingsView: View {
     private func refreshCloudKitStatus() {
         cloudKitState = .checking
 
-        CKContainer(identifier: Self.cloudKitContainerIdentifier).accountStatus { status, error in
-            DispatchQueue.main.async {
-                cloudKitState = CloudKitAccountState(status: status, error: error)
-            }
+        Task {
+            cloudKitState = await NoteFlowCloudKitStatusService.currentState()
         }
     }
 
@@ -443,100 +497,48 @@ private struct CloudBackupSettingsView: View {
             backupError = "\(error.localizedDescription)\n\n\(String(describing: error))"
         }
     }
-}
 
-private enum CloudKitAccountState {
-    case checking
-    case available
-    case noAccount
-    case restricted
-    case temporarilyUnavailable
-    case couldNotDetermine(String?)
-
-    init(status: CKAccountStatus, error: Error?) {
-        if let error {
-            self = .couldNotDetermine(error.localizedDescription)
-            return
+    private func forceUploadBackup() {
+        isForceBackupInProgress = true
+        defer {
+            isForceBackupInProgress = false
         }
 
-        switch status {
-        case .available:
-            self = .available
-        case .noAccount:
-            self = .noAccount
-        case .restricted:
-            self = .restricted
-        case .temporarilyUnavailable:
-            self = .temporarilyUnavailable
-        case .couldNotDetermine:
-            self = .couldNotDetermine(nil)
-        @unknown default:
-            self = .couldNotDetermine(nil)
+        do {
+            try NoteFlowForceBackupService.forceUpload(
+                folders: folders,
+                notes: notes,
+                tombstones: deletedNoteTombstones
+            )
+            backupMessage = "이 기기 데이터를 iCloud 강제 백업 파일로 업로드했습니다."
+        } catch {
+            backupError = backupErrorMessage(for: error)
         }
     }
 
-    var title: String {
-        switch self {
-        case .checking:
-            return "iCloud 상태를 확인하고 있습니다"
-        case .available:
-            return "iCloud 동기화 사용 가능"
-        case .noAccount:
-            return "iCloud 로그인이 필요합니다"
-        case .restricted:
-            return "iCloud 사용이 제한되어 있습니다"
-        case .temporarilyUnavailable:
-            return "iCloud를 일시적으로 사용할 수 없습니다"
-        case .couldNotDetermine:
-            return "iCloud 상태를 확인할 수 없습니다"
+    private func forceDownloadBackup() {
+        isForceBackupInProgress = true
+        defer {
+            isForceBackupInProgress = false
+        }
+
+        do {
+            try NoteFlowForceBackupService.forceDownload(modelContext: modelContext)
+            backupMessage = "iCloud 강제 백업 파일로 이 기기 데이터를 전체 교체했습니다."
+        } catch {
+            backupError = backupErrorMessage(for: error)
         }
     }
 
-    var message: String {
-        switch self {
-        case .checking:
-            return "이 기기의 iCloud 계정 상태를 확인하는 중입니다."
-        case .available:
-            return "메모 데이터는 SwiftData와 CloudKit을 통해 가능한 경우 자동으로 동기화됩니다."
-        case .noAccount:
-            return "기기 설정에서 Apple 계정으로 로그인하고 iCloud를 활성화해 주세요."
-        case .restricted:
-            return "기기 또는 계정 정책 때문에 iCloud 데이터 동기화를 사용할 수 없습니다."
-        case .temporarilyUnavailable:
-            return "iCloud 서버 또는 네트워크 상태가 안정된 뒤 다시 확인해 주세요."
-        case .couldNotDetermine(let detail):
-            return detail ?? "잠시 후 다시 확인하거나 기기의 iCloud 설정을 확인해 주세요."
+    private func backupErrorMessage(for error: Error) -> String {
+        if let localizedError = error as? LocalizedError,
+           let message = localizedError.errorDescription {
+            if let suggestion = localizedError.recoverySuggestion {
+                return "\(message)\n\n\(suggestion)"
+            }
+            return message
         }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .checking:
-            return "icloud"
-        case .available:
-            return "checkmark.icloud"
-        case .noAccount:
-            return "person.crop.circle.badge.exclamationmark"
-        case .restricted:
-            return "lock.icloud"
-        case .temporarilyUnavailable:
-            return "exclamationmark.icloud"
-        case .couldNotDetermine:
-            return "questionmark.circle"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .available:
-            return .green
-        case .checking:
-            return NoteFlowDesign.ink
-        case .temporarilyUnavailable:
-            return .orange
-        case .noAccount, .restricted, .couldNotDetermine:
-            return .red
-        }
+        return "\(error.localizedDescription)\n\n\(String(describing: error))"
     }
 }
 
