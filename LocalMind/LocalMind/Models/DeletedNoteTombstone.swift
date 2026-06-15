@@ -3,17 +3,17 @@ import SwiftData
 
 @Model
 final class DeletedNoteTombstone {
-    var id: UUID
-    var noteID: UUID
-    var deletedAt: Date
-    var updatedAt: Date
-    var sourceTitle: String
+    var id: UUID = UUID()
+    var noteID: UUID = UUID()
+    var deletedAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    var sourceTitle: String = ""
 
     init(
         id: UUID = UUID(),
         noteID: UUID,
-        deletedAt: Date = .now,
-        updatedAt: Date = .now,
+        deletedAt: Date = Date.now,
+        updatedAt: Date = Date.now,
         sourceTitle: String = ""
     ) {
         self.id = id
@@ -26,7 +26,7 @@ final class DeletedNoteTombstone {
 
 @MainActor
 enum DeletedNoteTombstoneService {
-    static func recordPermanentDeletion(of note: NotePage, in modelContext: ModelContext, date: Date = .now) {
+    static func recordPermanentDeletion(of note: NotePage, in modelContext: ModelContext, date: Date = Date.now) {
         let noteID = note.id
         let title = note.displayTitle
         let descriptor = FetchDescriptor<DeletedNoteTombstone>(

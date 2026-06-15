@@ -106,19 +106,19 @@ struct BlockMetadata: Codable {
 
 @Model
 final class NoteBlock {
-    var id: UUID
-    var typeRaw: String
-    var text: String
-    var tableDataRaw: String
-    var indentLevel: Int
+    var id: UUID = UUID()
+    var typeRaw: String = BlockType.text.rawValue
+    var text: String = ""
+    var tableDataRaw: String = ""
+    var indentLevel: Int = 0
     var parentBlockID: UUID?
-    var isExpanded: Bool
-    var metadataRaw: String
+    var isExpanded: Bool = true
+    var metadataRaw: String = ""
     @Attribute(.externalStorage) var attachmentData: Data?
-    var isChecked: Bool
-    var sortIndex: Int
-    var createdAt: Date
-    var updatedAt: Date
+    var isChecked: Bool = false
+    var sortIndex: Int = 0
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
     var note: NotePage?
 
     init(
@@ -133,8 +133,8 @@ final class NoteBlock {
         attachmentData: Data? = nil,
         isChecked: Bool = false,
         sortIndex: Int = 0,
-        createdAt: Date = .now,
-        updatedAt: Date = .now,
+        createdAt: Date = Date.now,
+        updatedAt: Date = Date.now,
         note: NotePage? = nil
     ) {
         self.id = id
@@ -209,6 +209,6 @@ final class NoteBlock {
     }
 
     func touch() {
-        updatedAt = .now
+        updatedAt = Date.now
     }
 }

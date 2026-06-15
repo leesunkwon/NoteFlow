@@ -510,11 +510,12 @@ struct NoteInfoView: View {
                 }
 
                 Section("할 일") {
-                    if note.tasks.isEmpty {
+                    let tasks = note.tasks ?? []
+                    if tasks.isEmpty {
                         Text("할 일 없음")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(note.tasks.sorted(by: { $0.createdAt < $1.createdAt })) { task in
+                        ForEach(tasks.sorted(by: { $0.createdAt < $1.createdAt })) { task in
                             Button {
                                 task.isDone.toggle()
                                 note.touch()
@@ -1098,14 +1099,18 @@ struct WritingDiffView: View {
     private func highlightedText(_ text: String, comparedTo other: String?) -> Text {
         let otherWords = Set(words(in: other ?? ""))
         let tokens = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
-        return tokens.enumerated().reduce(Text("")) { partial, item in
-            let separator = item.offset == 0 ? Text("") : Text(" ")
+        let attributed = tokens.enumerated().reduce(into: AttributedString()) { partial, item in
+            if item.offset > 0 {
+                partial.append(AttributedString(" "))
+            }
             let normalized = normalizeWord(item.element)
-            let token = otherWords.contains(normalized) || normalized.isEmpty
-                ? Text(item.element)
-                : Text(item.element).fontWeight(.bold)
-            return partial + separator + token
+            var token = AttributedString(item.element)
+            if !otherWords.contains(normalized) && !normalized.isEmpty {
+                token.font = .body.bold()
+            }
+            partial.append(token)
         }
+        return Text(attributed)
     }
 
     private func words(in text: String) -> [String] {

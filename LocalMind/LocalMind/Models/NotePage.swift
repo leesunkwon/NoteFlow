@@ -3,15 +3,15 @@ import SwiftData
 
 @Model
 final class NotePage {
-    var id: UUID
-    var title: String
-    var body: String
-    var summary: String
-    var tags: [String]
-    var createdAt: Date
-    var updatedAt: Date
-    var isFavorite: Bool
-    var isLocked: Bool
+    var id: UUID = UUID()
+    var title: String = ""
+    var body: String = ""
+    var summary: String = ""
+    var tags: [String] = []
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    var isFavorite: Bool = false
+    var isLocked: Bool = false
     var deletedAt: Date?
     var lastAIUndoBody: String?
     var lastAIUndoTitle: String?
@@ -21,10 +21,10 @@ final class NotePage {
     var folder: Folder?
 
     @Relationship(deleteRule: .cascade, inverse: \TaskItem.note)
-    var tasks: [TaskItem]
+    var tasks: [TaskItem]?
 
     @Relationship(deleteRule: .cascade, inverse: \NoteBlock.note)
-    var blocks: [NoteBlock]
+    var blocks: [NoteBlock]?
 
     init(
         id: UUID = UUID(),
@@ -32,8 +32,8 @@ final class NotePage {
         body: String,
         summary: String = "",
         tags: [String] = [],
-        createdAt: Date = .now,
-        updatedAt: Date = .now,
+        createdAt: Date = Date.now,
+        updatedAt: Date = Date.now,
         isFavorite: Bool = false,
         isLocked: Bool = false,
         deletedAt: Date? = nil,
@@ -77,7 +77,7 @@ final class NotePage {
     }
 
     func touch() {
-        updatedAt = .now
+        updatedAt = Date.now
     }
 
     var isEmptyDraft: Bool {
@@ -85,8 +85,8 @@ final class NotePage {
         && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && tags.isEmpty
-        && tasks.isEmpty
-        && blocks.allSatisfy {
+        && (tasks ?? []).isEmpty
+        && (blocks ?? []).allSatisfy {
             $0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && $0.attachmentData == nil
             && $0.type != .divider
@@ -94,7 +94,7 @@ final class NotePage {
     }
 
     var sortedBlocks: [NoteBlock] {
-        blocks.sorted {
+        (blocks ?? []).sorted {
             if $0.sortIndex == $1.sortIndex {
                 return $0.createdAt < $1.createdAt
             }

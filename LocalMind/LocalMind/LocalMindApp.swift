@@ -35,14 +35,18 @@ struct LocalMindApp: App {
     }
 
     private static func makeModelContainer() throws -> ModelContainer {
-            let schema = Schema([
-                Folder.self,
-                NotePage.self,
-                TaskItem.self,
-                NoteBlock.self,
-                DeletedNoteTombstone.self
-            ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .none)
+        let schema = Schema([
+            Folder.self,
+            NotePage.self,
+            TaskItem.self,
+            NoteBlock.self,
+            DeletedNoteTombstone.self
+        ])
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .private("iCloud.kotlinsun.LocalMind")
+        )
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 }

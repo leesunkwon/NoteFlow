@@ -101,6 +101,10 @@ struct NoteEditorView: View {
         note.sortedBlocks
     }
 
+    private var noteBlocks: [NoteBlock] {
+        note.blocks ?? []
+    }
+
     private var visibleBlocks: [NoteBlock] {
         var hiddenParentIDs = Set<UUID>()
         var blocks: [NoteBlock] = []
@@ -804,7 +808,7 @@ struct NoteEditorView: View {
         guard dropPlacement?.targetBlockID == block.id,
               let draggingBlockID,
               draggingBlockID != block.id,
-              let draggingBlock = note.blocks.first(where: { $0.id == draggingBlockID }) else {
+              let draggingBlock = noteBlocks.first(where: { $0.id == draggingBlockID }) else {
             return false
         }
 
@@ -1553,7 +1557,7 @@ struct NoteEditorView: View {
 
     private func addTask() {
         recordUndoSnapshot()
-        note.tasks.append(TaskItem(title: "", note: note))
+        note.tasks = (note.tasks ?? []) + [TaskItem(title: "", note: note)]
         saveUserEdit(recordUndo: false)
     }
 
@@ -1599,7 +1603,7 @@ struct NoteEditorView: View {
             return
         }
 
-        let nextBody = note.blocks.isEmpty ? draftBody : note.composedBlockText
+        let nextBody = noteBlocks.isEmpty ? draftBody : note.composedBlockText
         guard note.body != nextBody else {
             draftBody = nextBody
             return
@@ -1678,10 +1682,10 @@ struct NoteEditorView: View {
         note.tags = snapshot.tags
         note.isFavorite = snapshot.isFavorite
 
-        for block in note.blocks {
+        for block in noteBlocks {
             modelContext.delete(block)
         }
-        note.blocks.removeAll()
+        note.blocks = []
 
         let restoredBlocks = snapshot.blocks.map { $0.makeBlock(note: note) }
         for block in restoredBlocks {
@@ -1744,7 +1748,7 @@ struct NoteEditorView: View {
     }
 
     private func ensureBlocksReady() {
-        guard note.blocks.isEmpty else {
+        guard noteBlocks.isEmpty else {
             syncBodyFromBlocks(save: false, markModified: false)
             return
         }
@@ -1753,7 +1757,7 @@ struct NoteEditorView: View {
         if source.isEmpty {
             let block = NoteBlock(type: .text, text: "", sortIndex: 0, note: note)
             modelContext.insert(block)
-            note.blocks.append(block)
+            note.blocks = noteBlocks + [block]
         } else {
             appendBlocks(from: source)
         }
@@ -1772,7 +1776,7 @@ struct NoteEditorView: View {
             note: note
         )
         modelContext.insert(block)
-        note.blocks.append(block)
+        note.blocks = noteBlocks + [block]
         hasUserEditedDraft = true
         syncBodyFromBlocks()
         requestBlockFocus(block.id)
@@ -1907,7 +1911,7 @@ struct NoteEditorView: View {
 
     private func duplicateBlock(_ block: NoteBlock) {
         recordUndoSnapshot()
-        for candidate in note.blocks where candidate.sortIndex > block.sortIndex {
+        for candidate in noteBlocks where candidate.sortIndex > block.sortIndex {
             candidate.sortIndex += 1
         }
 
@@ -1925,7 +1929,7 @@ struct NoteEditorView: View {
             note: note
         )
         modelContext.insert(duplicated)
-        note.blocks.append(duplicated)
+        note.blocks = noteBlocks + [duplicated]
         normalizeBlockIndexes()
         hasUserEditedDraft = true
         syncBodyFromBlocks()
@@ -1939,7 +1943,7 @@ struct NoteEditorView: View {
         parentBlockID: UUID?,
         indentLevel: Int
     ) -> NoteBlock {
-        for candidate in note.blocks where candidate.sortIndex > block.sortIndex {
+        for candidate in noteBlocks where candidate.sortIndex > block.sortIndex {
             candidate.sortIndex += 1
         }
 
@@ -1953,7 +1957,7 @@ struct NoteEditorView: View {
             note: note
         )
         modelContext.insert(newBlock)
-        note.blocks.append(newBlock)
+        note.blocks = noteBlocks + [newBlock]
         normalizeBlockIndexes()
         hasUserEditedDraft = true
         return newBlock
@@ -2011,7 +2015,7 @@ struct NoteEditorView: View {
     }
 
     private func applySlashCommand(_ type: BlockType) {
-        guard let block = note.blocks.first(where: { $0.id == slashCommandBlockID }) else {
+        guard let block = noteBlocks.first(where: { $0.id == slashCommandBlockID }) else {
             dismissSlashCommandMenu()
             return
         }
@@ -2054,7 +2058,7 @@ struct NoteEditorView: View {
     private func outdentBlock(_ block: NoteBlock) {
         recordUndoSnapshot()
         if let parentBlockID = block.parentBlockID {
-            let parent = note.blocks.first { $0.id == parentBlockID }
+            let parent = noteBlocks.first { $0.id == parentBlockID }
             block.parentBlockID = parent?.parentBlockID
         }
         block.indentLevel = max(0, block.indentLevel - 1)
@@ -2103,7 +2107,7 @@ struct NoteEditorView: View {
             if currentParentID == ancestor.id {
                 return true
             }
-            parentID = note.blocks.first { $0.id == currentParentID }?.parentBlockID
+            parentID = noteBlocks.first { $0.id == currentParentID }?.parentBlockID
         }
 
         return false
@@ -2132,7 +2136,7 @@ struct NoteEditorView: View {
         recordUndoSnapshot()
         let blocksToDelete = subtreeBlocks(for: block)
         let deleteIDs = Set(blocksToDelete.map(\.id))
-        note.blocks.removeAll { deleteIDs.contains($0.id) }
+        note.blocks = noteBlocks.filter { !deleteIDs.contains($0.id) }
         for deletingBlock in blocksToDelete {
             modelContext.delete(deletingBlock)
         }
@@ -2202,7 +2206,7 @@ struct NoteEditorView: View {
                 }
 
                 guard let data,
-                      let block = note.blocks.first(where: { $0.id == blockID }) else {
+                      let block = noteBlocks.first(where: { $0.id == blockID }) else {
                     return
                 }
 
@@ -2225,7 +2229,7 @@ struct NoteEditorView: View {
         }
 
         guard let blockID = fileImporterBlockID,
-              let block = note.blocks.first(where: { $0.id == blockID }) else {
+              let block = noteBlocks.first(where: { $0.id == blockID }) else {
             return
         }
 
@@ -2264,15 +2268,15 @@ struct NoteEditorView: View {
         recordUndoSnapshot()
         let blocksToDelete = subtreeBlocks(for: block)
         let deleteIDs = Set(blocksToDelete.map(\.id))
-        note.blocks.removeAll { deleteIDs.contains($0.id) }
+        note.blocks = noteBlocks.filter { !deleteIDs.contains($0.id) }
         for deletingBlock in blocksToDelete {
             modelContext.delete(deletingBlock)
         }
 
-        if note.blocks.isEmpty {
+        if noteBlocks.isEmpty {
             let replacement = NoteBlock(type: .text, text: "", sortIndex: 0, note: note)
             modelContext.insert(replacement)
-            note.blocks.append(replacement)
+            note.blocks = noteBlocks + [replacement]
             requestBlockFocus(replacement.id)
         }
 
@@ -2308,8 +2312,8 @@ struct NoteEditorView: View {
     }
 
     private func canDropBlock(_ draggedID: UUID, on placement: DropPlacement) -> Bool {
-        guard let draggedBlock = note.blocks.first(where: { $0.id == draggedID }),
-              let targetBlock = note.blocks.first(where: { $0.id == placement.targetBlockID }),
+        guard let draggedBlock = noteBlocks.first(where: { $0.id == draggedID }),
+              let targetBlock = noteBlocks.first(where: { $0.id == placement.targetBlockID }),
               draggedBlock.id != targetBlock.id else {
             return false
         }
@@ -2323,7 +2327,7 @@ struct NoteEditorView: View {
             dropPlacement = nil
         }
 
-        guard let draggedBlock = note.blocks.first(where: { $0.id == draggedID }),
+        guard let draggedBlock = noteBlocks.first(where: { $0.id == draggedID }),
               canDropBlock(draggedID, on: placement) else {
             return false
         }
@@ -2341,7 +2345,7 @@ struct NoteEditorView: View {
     private func moveBlock(_ draggedBlock: NoteBlock, to placement: DropPlacement) -> Bool {
         let movingBlocks = subtreeBlocks(for: draggedBlock)
         let movingIDs = Set(movingBlocks.map(\.id))
-        guard let targetBlock = note.blocks.first(where: { $0.id == placement.targetBlockID }),
+        guard let targetBlock = noteBlocks.first(where: { $0.id == placement.targetBlockID }),
               !movingIDs.contains(targetBlock.id) else {
             return false
         }
@@ -2400,51 +2404,51 @@ struct NoteEditorView: View {
 
     private func appendBlocks(from text: String) {
         let paragraphs = blockParagraphs(from: text)
-        var nextIndex = (note.blocks.map(\.sortIndex).max() ?? -1) + 1
+        var nextIndex = (noteBlocks.map(\.sortIndex).max() ?? -1) + 1
 
         for paragraph in paragraphs {
             let block = NoteBlock(type: .text, text: paragraph, sortIndex: nextIndex, note: note)
             modelContext.insert(block)
-            note.blocks.append(block)
+            note.blocks = noteBlocks + [block]
             nextIndex += 1
         }
     }
 
     private func appendBlockDrafts(_ drafts: [AIBlockDraft]) {
-        var nextIndex = (note.blocks.map(\.sortIndex).max() ?? -1) + 1
+        var nextIndex = (noteBlocks.map(\.sortIndex).max() ?? -1) + 1
 
         for draft in AIBlockDraft.sanitized(drafts) {
             let block = makeNoteBlock(from: draft, sortIndex: nextIndex)
             modelContext.insert(block)
-            note.blocks.append(block)
+            note.blocks = noteBlocks + [block]
             nextIndex += 1
         }
     }
 
     private func replaceBlocks(with text: String) {
-        for block in note.blocks {
+        for block in noteBlocks {
             modelContext.delete(block)
         }
-        note.blocks.removeAll()
+        note.blocks = []
         appendBlocks(from: text)
-        if note.blocks.isEmpty {
+        if noteBlocks.isEmpty {
             let block = NoteBlock(type: .text, text: "", sortIndex: 0, note: note)
             modelContext.insert(block)
-            note.blocks.append(block)
+            note.blocks = noteBlocks + [block]
         }
         normalizeBlockIndexes()
     }
 
     private func replaceBlocks(with drafts: [AIBlockDraft]) {
-        for block in note.blocks {
+        for block in noteBlocks {
             modelContext.delete(block)
         }
-        note.blocks.removeAll()
+        note.blocks = []
         appendBlockDrafts(drafts)
-        if note.blocks.isEmpty {
+        if noteBlocks.isEmpty {
             let block = NoteBlock(type: .text, text: "", sortIndex: 0, note: note)
             modelContext.insert(block)
-            note.blocks.append(block)
+            note.blocks = noteBlocks + [block]
         }
         normalizeBlockIndexes()
     }

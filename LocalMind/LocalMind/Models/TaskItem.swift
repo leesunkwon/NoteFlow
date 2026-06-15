@@ -3,17 +3,17 @@ import SwiftData
 
 @Model
 final class TaskItem {
-    var id: UUID
-    var title: String
-    var isDone: Bool
-    var createdAt: Date
+    var id: UUID = UUID()
+    var title: String = ""
+    var isDone: Bool = false
+    var createdAt: Date = Date.now
     var note: NotePage?
 
     init(
         id: UUID = UUID(),
         title: String,
         isDone: Bool = false,
-        createdAt: Date = .now,
+        createdAt: Date = Date.now,
         note: NotePage? = nil
     ) {
         self.id = id
