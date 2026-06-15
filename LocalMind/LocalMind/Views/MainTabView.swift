@@ -629,7 +629,7 @@ enum MainTab: String, CaseIterable, Identifiable {
         case .compose:
             return "새 메모"
         case .utilities:
-            return "부가 기능"
+            return "AI 도구"
         case .settings:
             return "설정"
         }
