@@ -158,9 +158,9 @@ struct SettingsView: View {
             Section("실험 기능") {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("부가 기능")
+                        Text("AI 도구")
                             .foregroundStyle(NoteFlowDesign.ink)
-                        Text("지출 스캔, 연락처 스캔, 필기 변환, 회의 요약은 부가 기능 탭에서 먼저 제공합니다.")
+                        Text("손글씨, 회의, 파일, 문서 스캔 도구는 AI 도구 탭에서 제공합니다.")
                             .font(.caption)
                             .foregroundStyle(NoteFlowDesign.mute)
                     }

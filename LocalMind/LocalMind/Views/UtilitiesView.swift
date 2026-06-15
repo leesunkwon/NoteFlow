@@ -50,78 +50,87 @@ struct UtilitiesView: View {
 
     private let features: [UtilityFeature] = [
         UtilityFeature(
-            kind: .documentScan,
-            title: "문서 스캔",
-            subtitle: "종이 문서를 텍스트 메모로 바꿉니다.",
-            description: "계약서, 출력물, 종이 문서를 촬영해 제목과 본문, 표 구조를 갖춘 메모로 변환합니다. 결과를 확인한 뒤 새 메모로 저장할 수 있습니다.",
-            systemImage: "doc.viewfinder"
-        ),
-        UtilityFeature(
-            kind: .fileSummary,
-            title: "파일 요약",
-            subtitle: "PDF, TXT, DOCX를 요약 메모로 정리합니다.",
-            description: "가져온 파일의 내용을 읽어 제목, 핵심 요약, 정리 본문으로 바꿉니다. 결과를 수정한 뒤 NoteFlow 메모로 저장할 수 있습니다.",
-            systemImage: "doc.text.magnifyingglass"
-        ),
-        UtilityFeature(
-            kind: .receipt,
-            title: "지출 스캔",
-            subtitle: "영수증에서 날짜, 금액, 가맹점을 정리합니다.",
-            description: "영수증 속 결제 정보를 읽어 지출 내역으로 정리합니다. 날짜, 금액, 가맹점, 품목을 확인한 뒤 새 메모로 바로 저장할 수 있습니다.",
-            systemImage: "receipt"
-        ),
-        UtilityFeature(
-            kind: .businessCard,
-            title: "연락처 스캔",
-            subtitle: "명함 정보를 연락처 형태로 정리합니다.",
-            description: "명함 속 이름, 회사, 직책, 전화번호, 이메일을 읽어 정돈된 메모로 바꿉니다. 연락처 앱 연동 없이 NoteFlow 메모로 저장합니다.",
-            systemImage: "person.crop.rectangle"
-        ),
-        UtilityFeature(
             kind: .handwritingOCR,
-            title: "필기 변환",
+            section: .convertToNote,
+            title: "손글씨 인식",
             subtitle: "손글씨와 화이트보드를 메모 블록으로 바꿉니다.",
             description: "종이에 적은 손글씨나 화이트보드 내용을 읽어 NoteFlow 메모 블록으로 변환합니다. 결과를 확인한 뒤 새 메모로 바로 저장할 수 있습니다.",
-            systemImage: "text.viewfinder"
+            systemImage: "text.viewfinder",
+            inputLabel: "이미지"
         ),
         UtilityFeature(
             kind: .meetingSummary,
+            section: .convertToNote,
             title: "회의 요약",
             subtitle: "음성을 회의록과 핵심 요약으로 정리합니다.",
             description: "녹음한 회의나 가져온 음성 파일을 읽어 제목, 핵심 요약, 회의록 본문으로 정리합니다. 결과를 확인한 뒤 새 메모로 저장할 수 있습니다.",
-            systemImage: "waveform"
+            systemImage: "waveform",
+            inputLabel: "음성"
+        ),
+        UtilityFeature(
+            kind: .fileSummary,
+            section: .convertToNote,
+            title: "파일 요약",
+            subtitle: "PDF, TXT, DOCX를 요약 메모로 정리합니다.",
+            description: "가져온 파일의 내용을 읽어 제목, 핵심 요약, 정리 본문으로 바꿉니다. 결과를 수정한 뒤 NoteFlow 메모로 저장할 수 있습니다.",
+            systemImage: "doc.text.magnifyingglass",
+            inputLabel: "파일"
+        ),
+        UtilityFeature(
+            kind: .documentScan,
+            section: .organizeDocument,
+            title: "문서 스캔",
+            subtitle: "종이 문서를 텍스트 메모로 바꿉니다.",
+            description: "계약서, 출력물, 종이 문서를 촬영해 제목과 본문, 표 구조를 갖춘 메모로 변환합니다. 결과를 확인한 뒤 새 메모로 저장할 수 있습니다.",
+            systemImage: "doc.viewfinder",
+            inputLabel: "이미지"
+        ),
+        UtilityFeature(
+            kind: .receipt,
+            section: .organizeDocument,
+            title: "영수증 스캔",
+            subtitle: "영수증에서 날짜, 금액, 가맹점을 정리합니다.",
+            description: "영수증 속 결제 정보를 읽어 지출 내역으로 정리합니다. 날짜, 금액, 가맹점, 품목을 확인한 뒤 새 메모로 바로 저장할 수 있습니다.",
+            systemImage: "receipt",
+            inputLabel: "이미지"
+        ),
+        UtilityFeature(
+            kind: .businessCard,
+            section: .organizeDocument,
+            title: "명함 스캔",
+            subtitle: "명함 정보를 연락처 형태로 정리합니다.",
+            description: "명함 속 이름, 회사, 직책, 전화번호, 이메일을 읽어 정돈된 메모로 바꿉니다. 연락처 앱 연동 없이 NoteFlow 메모로 저장합니다.",
+            systemImage: "person.crop.rectangle",
+            inputLabel: "이미지"
         )
     ]
 
+    private var featureSections: [UtilityFeatureSection] {
+        UtilityFeatureSection.allCases.filter { section in
+            features.contains { $0.section == section }
+        }
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(spacing: 12) {
-                    ForEach(features) { feature in
-                        NavigationLink {
-                            UtilityFeatureDetailView(
-                                feature: feature,
-                                isProcessing: isProcessing(feature),
-                                processImage: processImage,
-                                processAudio: processAudio,
-                                processFile: processFile
-                            )
-                        } label: {
-                            UtilityFeatureCard(
-                                feature: feature,
-                                isProcessing: isProcessing(feature)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
+            VStack(alignment: .leading, spacing: 26) {
+                ForEach(featureSections) { section in
+                    UtilityFeatureSectionView(
+                        section: section,
+                        features: features.filter { $0.section == section },
+                        isProcessing: isProcessing,
+                        processImage: processImage,
+                        processAudio: processAudio,
+                        processFile: processFile
+                    )
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 10)
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
             .padding(.bottom, 24)
         }
         .background(NoteFlowDesign.canvas.ignoresSafeArea())
-        .navigationTitle("부가 기능")
+        .navigationTitle("AI 도구")
         .navigationBarTitleDisplayMode(.large)
         .sheet(item: $ocrPreview) { result in
             HandwritingOCRPreviewSheet(
@@ -889,16 +898,89 @@ private enum UtilityFeatureKind {
     }
 }
 
+private enum UtilityFeatureSection: CaseIterable, Identifiable {
+    case convertToNote
+    case organizeDocument
+
+    var id: String { title }
+
+    var title: String {
+        switch self {
+        case .convertToNote:
+            return "메모로 바꾸기"
+        case .organizeDocument:
+            return "문서 정리하기"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .convertToNote:
+            return "이미지, 음성, 파일을 새 메모 초안으로 변환합니다."
+        case .organizeDocument:
+            return "문서와 스캔 이미지를 정돈된 기록으로 저장합니다."
+        }
+    }
+}
+
 private struct UtilityFeature: Identifiable {
     let id = UUID()
     let kind: UtilityFeatureKind
+    let section: UtilityFeatureSection
     let title: String
     let subtitle: String
     let description: String
     let systemImage: String
+    let inputLabel: String
+    let providerLabel = "Gemini"
 
     var isAvailable: Bool {
         true
+    }
+}
+
+private struct UtilityFeatureSectionView: View {
+    let section: UtilityFeatureSection
+    let features: [UtilityFeature]
+    let isProcessing: (UtilityFeature) -> Bool
+    let processImage: (UIImage, UtilityFeatureKind) -> Void
+    let processAudio: (Data, String, MeetingSummaryMode) -> Void
+    let processFile: (URL) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(section.title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(NoteFlowDesign.ink)
+
+                Text(section.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(NoteFlowDesign.mute)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 2)
+
+            VStack(spacing: 10) {
+                ForEach(features) { feature in
+                    NavigationLink {
+                        UtilityFeatureDetailView(
+                            feature: feature,
+                            isProcessing: isProcessing(feature),
+                            processImage: processImage,
+                            processAudio: processAudio,
+                            processFile: processFile
+                        )
+                    } label: {
+                        UtilityFeatureCard(
+                            feature: feature,
+                            isProcessing: isProcessing(feature)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
 
@@ -919,41 +1001,79 @@ private struct UtilityFeatureCard: View {
                 )
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(feature.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(NoteFlowDesign.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(feature.title)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(NoteFlowDesign.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if isProcessing {
+                        Text("분석 중")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(NoteFlowDesign.ink)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(NoteFlowDesign.canvas, in: Capsule())
+                    }
+                }
 
                 Text(feature.subtitle)
                     .font(.footnote)
                     .foregroundStyle(NoteFlowDesign.mute)
                     .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 6) {
+                    UtilityFeatureBadge(text: feature.inputLabel, systemImage: inputSystemImage)
+                    UtilityFeatureBadge(text: feature.providerLabel, systemImage: "sparkles")
+                }
             }
 
             Spacer(minLength: 8)
 
-            statusLabel
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(NoteFlowDesign.hairline)
         }
-        .padding(16)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoteFlowDesign.softCloud, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(NoteFlowDesign.softCloud, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
         )
         .opacity(feature.isAvailable ? 1 : 0.7)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(feature.title), \(feature.isAvailable ? "사용 가능" : "준비 중")")
+        .accessibilityLabel("\(feature.title), \(feature.inputLabel), \(feature.providerLabel), \(isProcessing ? "분석 중" : "사용 가능")")
     }
 
-    @ViewBuilder
-    private var statusLabel: some View {
-        Text(feature.isAvailable ? (isProcessing ? "분석 중" : "보기") : "준비 중")
-            .font(.caption.weight(.semibold))
+    private var inputSystemImage: String {
+        switch feature.inputLabel {
+        case "음성":
+            return "waveform"
+        case "파일":
+            return "doc"
+        default:
+            return "photo"
+        }
+    }
+}
+
+private struct UtilityFeatureBadge: View {
+    let text: String
+    let systemImage: String
+
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(NoteFlowDesign.mute)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .labelStyle(.titleAndIcon)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
             .background(NoteFlowDesign.canvas, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
+            )
     }
 }
 
@@ -1531,6 +1651,11 @@ private struct UtilityFeatureHero: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(NoteFlowDesign.mute)
 
+                HStack(spacing: 8) {
+                    UtilityFeatureBadge(text: feature.inputLabel, systemImage: inputSystemImage)
+                    UtilityFeatureBadge(text: feature.providerLabel, systemImage: "sparkles")
+                }
+
                 Text(feature.title)
                     .font(.system(size: 38, weight: .black))
                     .foregroundStyle(NoteFlowDesign.ink)
@@ -1577,6 +1702,17 @@ private struct UtilityFeatureHero: View {
                 .foregroundStyle(NoteFlowDesign.ink)
         }
         .frame(width: 88, height: 88)
+    }
+
+    private var inputSystemImage: String {
+        switch feature.inputLabel {
+        case "음성":
+            return "waveform"
+        case "파일":
+            return "doc"
+        default:
+            return "photo"
+        }
     }
 }
 
