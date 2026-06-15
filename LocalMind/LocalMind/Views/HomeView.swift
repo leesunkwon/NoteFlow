@@ -876,8 +876,8 @@ enum SystemFolder: String, CaseIterable, Identifiable, Hashable {
             return note.deletedAt == nil && note.isFavorite
         case .tasks:
             return note.deletedAt == nil && (
-                note.tasks.contains { !$0.isDone }
-                || note.blocks.contains {
+                (note.tasks ?? []).contains { !$0.isDone }
+                || (note.blocks ?? []).contains {
                     $0.type == .checklist
                     && !$0.isChecked
                     && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -887,8 +887,8 @@ enum SystemFolder: String, CaseIterable, Identifiable, Hashable {
             return note.deletedAt == nil && (
                 !note.summary.isEmpty
                 || !note.tags.isEmpty
-                || !note.tasks.isEmpty
-                || note.blocks.contains { $0.type == .checklist }
+                || !(note.tasks ?? []).isEmpty
+                || (note.blocks ?? []).contains { $0.type == .checklist }
             )
         case .trash:
             return note.deletedAt != nil
@@ -1241,8 +1241,12 @@ private struct SearchMatchContextView: View {
         let prefix = String(text[..<range.lowerBound])
         let match = String(text[range])
         let suffix = String(text[range.upperBound...])
-        return Text(prefix)
-            + Text(match).foregroundColor(NoteFlowDesign.ink).fontWeight(.semibold)
-            + Text(suffix)
+        var highlighted = AttributedString(prefix)
+        var matchText = AttributedString(match)
+        matchText.foregroundColor = NoteFlowDesign.ink
+        matchText.font = .caption.weight(.semibold)
+        highlighted.append(matchText)
+        highlighted.append(AttributedString(suffix))
+        return Text(highlighted)
     }
 }

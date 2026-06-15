@@ -25,17 +25,7 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Folder.updatedAt, order: .forward) private var folders: [Folder]
     @Query(sort: \NotePage.updatedAt, order: .reverse) private var notes: [NotePage]
-    @Query(sort: \DeletedNoteTombstone.updatedAt, order: .reverse) private var deletedNoteTombstones: [DeletedNoteTombstone]
     @AppStorage(TrashCleanupService.autoCleanupStorageKey) private var autoCleanupTrashAfter30Days = false
-    @AppStorage(NoteFlowAutoBackupService.isEnabledKey) private var isAutoBackupEnabled = false
-    @AppStorage(NoteFlowAutoBackupService.lastBackupAtKey) private var lastAutoBackupAt = 0.0
-    @AppStorage(NoteFlowAutoBackupService.lastAttemptAtKey) private var lastAutoBackupAttemptAt = 0.0
-    @AppStorage(NoteFlowAutoBackupService.lastSignatureKey) private var lastAutoBackupSignature = ""
-    @AppStorage(NoteFlowAutoBackupService.lastRemoteExportedAtKey) private var lastRemoteExportedAt = 0.0
-    @AppStorage(NoteFlowAutoBackupService.lastRemoteSignatureKey) private var lastRemoteSignature = ""
-    @AppStorage(NoteFlowAutoBackupService.lastRemoteFileModifiedAtKey) private var lastRemoteFileModifiedAt = 0.0
-    @AppStorage(NoteFlowAutoBackupService.lastErrorKey) private var lastAutoBackupError = ""
-    @AppStorage(NoteFlowAutoBackupService.lastActionKey) private var lastSyncActionRaw = CloudSyncLastAction.none.rawValue
 
     @State private var selectedTab: MainTab = .allNotes
     @State private var lastNonComposeTab: MainTab = .allNotes
@@ -106,11 +96,10 @@ struct MainTabView: View {
         .onAppear {
             ensureDefaultFolder()
             cleanupExpiredTrashIfNeeded()
-            performCloudSyncIfNeeded()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active || phase == .background {
-                performCloudSyncIfNeeded()
+                cleanupExpiredTrashIfNeeded()
             }
         }
         .alert("저장 실패", isPresented: Binding(
@@ -188,88 +177,6 @@ struct MainTabView: View {
         } catch {
             persistenceError = "\(error.localizedDescription)\n\n\(String(describing: error))"
         }
-    }
-
-    private func performCloudSyncIfNeeded(force: Bool = false) {
-        guard isAutoBackupEnabled else {
-            return
-        }
-
-        let now = Date()
-        let signature = NoteFlowAutoBackupService.dataSignature(
-            folders: folders,
-            notes: notes,
-            tombstones: deletedNoteTombstones
-        )
-        guard NoteFlowAutoBackupService.canRunBackup(
-            currentSignature: signature,
-            lastSignature: lastAutoBackupSignature,
-            lastAttemptAt: lastAutoBackupAttemptAt,
-            force: force,
-            now: now
-        ) else {
-            return
-        }
-
-        lastAutoBackupAttemptAt = NoteFlowAutoBackupService.syncTimestamp(for: now)
-
-        do {
-            switch try NoteFlowCloudSyncService.decision(
-                folders: folders,
-                notes: notes,
-                tombstones: deletedNoteTombstones,
-                lastLocalSignature: lastAutoBackupSignature,
-                lastRemoteExportedAt: lastRemoteExportedAt,
-                lastRemoteSignature: lastRemoteSignature,
-                lastRemoteFileModifiedAt: lastRemoteFileModifiedAt
-            ) {
-            case .noChange(let remoteState):
-                lastAutoBackupAt = NoteFlowAutoBackupService.syncTimestamp(for: now)
-                storeRemoteSyncState(remoteState)
-                lastAutoBackupError = ""
-                lastSyncActionRaw = CloudSyncLastAction.noChange.rawValue
-            case .uploadLocal:
-                let remoteState = try NoteFlowAutoBackupService.writeBackup(
-                    folders: folders,
-                    notes: notes,
-                    tombstones: deletedNoteTombstones
-                )
-                lastAutoBackupAt = NoteFlowAutoBackupService.syncTimestamp(for: now)
-                lastAutoBackupSignature = NoteFlowAutoBackupService.dataSignature(
-                    folders: folders,
-                    notes: notes,
-                    tombstones: deletedNoteTombstones
-                )
-                storeRemoteSyncState(remoteState)
-                lastAutoBackupError = ""
-                lastSyncActionRaw = CloudSyncLastAction.uploaded.rawValue
-            case .downloadRemote(let remoteState):
-                let data = try NoteFlowBackupService.encodedData(remoteState.backup)
-                try NoteFlowBackupService.importBackup(data: data, mode: .replace, modelContext: modelContext)
-                lastAutoBackupAt = NoteFlowAutoBackupService.syncTimestamp(for: now)
-                lastAutoBackupSignature = remoteState.signature
-                storeRemoteSyncState(remoteState)
-                lastAutoBackupError = ""
-                lastSyncActionRaw = CloudSyncLastAction.downloaded.rawValue
-            case .conflict:
-                lastAutoBackupError = "iCloud와 이 기기 데이터가 모두 변경되었습니다. 설정에서 지금 동기화를 눌러 처리해 주세요."
-                lastSyncActionRaw = CloudSyncLastAction.conflict.rawValue
-            }
-        } catch {
-            lastAutoBackupError = "\(error.localizedDescription)\n\n\(String(describing: error))"
-            if let autoBackupError = error as? AutoBackupError,
-               case .iCloudFileDownloading = autoBackupError {
-                lastSyncActionRaw = CloudSyncLastAction.downloading.rawValue
-            } else {
-                lastSyncActionRaw = CloudSyncLastAction.failed.rawValue
-            }
-        }
-    }
-
-    private func storeRemoteSyncState(_ remoteState: RemoteBackupState) {
-        lastRemoteExportedAt = remoteState.exportedAt
-        lastRemoteSignature = remoteState.signature
-        lastRemoteFileModifiedAt = remoteState.fileModifiedAt
     }
 
     private func defaultFolder() -> Folder {

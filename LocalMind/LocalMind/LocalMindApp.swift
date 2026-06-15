@@ -42,7 +42,11 @@ struct LocalMindApp: App {
                 NoteBlock.self,
                 DeletedNoteTombstone.self
             ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .none)
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .private("iCloud.kotlinsun.LocalMind")
+        )
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 }

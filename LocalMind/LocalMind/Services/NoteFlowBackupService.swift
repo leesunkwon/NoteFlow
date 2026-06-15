@@ -349,7 +349,7 @@ private extension NoteBackup {
         isLocked = note.isLocked
         deletedAt = note.deletedAt
         folderID = note.folder?.id
-        tasks = note.tasks.map(TaskBackup.init(task:))
+        tasks = (note.tasks ?? []).map(TaskBackup.init(task:))
         blocks = note.sortedBlocks.map(NoteBlockBackup.init(block:))
     }
 

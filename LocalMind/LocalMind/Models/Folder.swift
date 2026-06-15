@@ -3,19 +3,19 @@ import SwiftData
 
 @Model
 final class Folder {
-    var id: UUID
-    var name: String
-    var createdAt: Date
-    var updatedAt: Date
+    var id: UUID = UUID()
+    var name: String = ""
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
 
     @Relationship(deleteRule: .nullify, inverse: \NotePage.folder)
-    var notes: [NotePage]
+    var notes: [NotePage]?
 
     init(
         id: UUID = UUID(),
         name: String,
-        createdAt: Date = .now,
-        updatedAt: Date = .now,
+        createdAt: Date = Date.now,
+        updatedAt: Date = Date.now,
         notes: [NotePage] = []
     ) {
         self.id = id
@@ -26,6 +26,6 @@ final class Folder {
     }
 
     func touch() {
-        updatedAt = .now
+        updatedAt = Date.now
     }
 }
