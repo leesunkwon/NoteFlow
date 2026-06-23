@@ -2,6 +2,18 @@
 
 NoteFlow는 SwiftUI와 SwiftData로 만든 iOS 메모 앱입니다. 블록 기반 편집, 폴더/태그 정리, 잠금 메모, iCloud 실시간 동기화, Apple Intelligence Foundation Models와 Gemini 기반 AI 도구를 한 앱 안에서 제공합니다.
 
+<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/0b60cb29-95b8-40b8-9fc1-19eb514679d4" />
+<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/9e65b554-b5e5-46bb-a049-52a00e7e0c2b" />
+
+<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/9632a9fa-bd83-4543-bc0f-09d65227cc21" />
+
+<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/e686f62c-c2d2-46b2-95a1-86d787e6783f" />
+<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/b825bc40-0c70-4dfe-b53d-329017e713a4" />
+
+
+
+
+
 ## 한눈에 보기
 
 - 블록 단위로 메모를 작성하고 재배치할 수 있는 노트 편집기
