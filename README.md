@@ -2,17 +2,43 @@
 
 NoteFlow는 SwiftUI와 SwiftData로 만든 iOS 메모 앱입니다. 블록 기반 편집, 폴더/태그 정리, 잠금 메모, iCloud 실시간 동기화, Apple Intelligence Foundation Models와 Gemini 기반 AI 도구를 한 앱 안에서 제공합니다.
 
-<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/0b60cb29-95b8-40b8-9fc1-19eb514679d4" />
-<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/9e65b554-b5e5-46bb-a049-52a00e7e0c2b" />
+## 화면 미리보기
 
-<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/9632a9fa-bd83-4543-bc0f-09d65227cc21" />
+NoteFlow의 핵심 화면입니다. 메모 작성, AI 도구, iCloud 백업 설정 흐름을 중심으로 구성되어 있습니다.
 
-<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/e686f62c-c2d2-46b2-95a1-86d787e6783f" />
-<img width="300" height="auto" alt="image" src="https://github.com/user-attachments/assets/b825bc40-0c70-4dfe-b53d-329017e713a4" />
-
-
-
-
+<table>
+  <tr>
+    <td align="center">
+      <img width="260" alt="메모 목록 화면" src="https://github.com/user-attachments/assets/0b60cb29-95b8-40b8-9fc1-19eb514679d4" />
+      <br />
+      <sub>메모 목록</sub>
+    </td>
+    <td align="center">
+      <img width="260" alt="블록 기반 편집 화면" src="https://github.com/user-attachments/assets/9e65b554-b5e5-46bb-a049-52a00e7e0c2b" />
+      <br />
+      <sub>블록 기반 편집</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img width="260" alt="AI 도구 화면" src="https://github.com/user-attachments/assets/9632a9fa-bd83-4543-bc0f-09d65227cc21" />
+      <br />
+      <sub>AI 도구</sub>
+    </td>
+    <td align="center">
+      <img width="260" alt="AI 결과 미리보기 화면" src="https://github.com/user-attachments/assets/e686f62c-c2d2-46b2-95a1-86d787e6783f" />
+      <br />
+      <sub>AI 결과 미리보기</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img width="260" alt="iCloud 및 백업 설정 화면" src="https://github.com/user-attachments/assets/b825bc40-0c70-4dfe-b53d-329017e713a4" />
+      <br />
+      <sub>iCloud 및 백업</sub>
+    </td>
+  </tr>
+</table>
 
 ## 한눈에 보기
 
