@@ -3,6 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
+// Gemini 기반 AI 도구를 모아 입력 선택, 처리 상태, 미리보기 저장 흐름을 관리합니다.
 struct UtilitiesView: View {
     let saveOCRResult: (HandwritingOCRResult) -> Void
     let saveMeetingSummaryResult: (MeetingSummaryResult) -> Void
@@ -341,6 +342,7 @@ struct UtilitiesView: View {
             return
         }
 
+        // 같은 기능이 중복 실행되지 않도록 처리 상태와 taskID를 함께 세팅합니다.
         isProcessingOCR = true
         ocrError = nil
         let taskID = UUID()
@@ -349,6 +351,7 @@ struct UtilitiesView: View {
 
         ocrTask = Task {
             do {
+                // 서비스가 진행 단계를 알려주면 현재 taskID와 맞을 때만 UI에 반영합니다.
                 let updateStage = stageUpdater(for: .handwritingOCR, taskID: taskID)
                 let result = try await GeminiHandwritingOCRService.recognize(
                     imageData: imageData,
@@ -361,6 +364,7 @@ struct UtilitiesView: View {
                     guard ocrTaskID == taskID else {
                         return
                     }
+                    // 결과가 도착한 뒤에는 바로 저장하지 않고 미리보기 시트로 넘깁니다.
                     ocrPreview = result
                     finishProcessing(.handwritingOCR)
                 }
@@ -371,6 +375,7 @@ struct UtilitiesView: View {
                     }
                     finishProcessing(.handwritingOCR)
                     guard !isCancellationError(error) else {
+                        // 사용자가 취소한 작업은 실패 alert를 띄우지 않습니다.
                         return
                     }
                     ocrError = GeminiServiceError.message(
@@ -525,6 +530,7 @@ struct UtilitiesView: View {
             return
         }
 
+        // 파일 요약은 security-scoped resource 접근과 파일 읽기를 Task 안에서 처리합니다.
         isProcessingFileSummary = true
         fileSummaryError = nil
         let taskID = UUID()
@@ -709,6 +715,7 @@ struct UtilitiesView: View {
     private func stageUpdater(for kind: UtilityFeatureKind, taskID: UUID) -> (AIProcessingStage) async -> Void {
         { stage in
             await MainActor.run {
+                // 취소되었거나 새 작업으로 교체된 AI 작업의 늦은 콜백은 화면 상태에 반영하지 않습니다.
                 guard currentTaskID(for: kind) == taskID else {
                     return
                 }
@@ -752,11 +759,13 @@ struct UtilitiesView: View {
     }
 
     private func cancelProcessing(_ kind: UtilityFeatureKind) {
+        // Task.cancel()만으로는 UI가 바로 닫히지 않으므로 화면 상태도 함께 정리합니다.
         task(for: kind)?.cancel()
         finishProcessing(kind)
     }
 
     private func finishProcessing(_ kind: UtilityFeatureKind) {
+        // 작업이 끝나면 Task, taskID, 단계 문구, loading flag를 한 번에 초기화합니다.
         switch kind {
         case .receipt:
             receiptTask = nil
@@ -1283,6 +1292,7 @@ private struct UtilityFeatureDetailView: View {
     }
 
     private func startFeature() {
+        // 기능마다 필요한 입력 방식이 달라서 시작 버튼에서 선택 화면을 분기합니다.
         switch feature.kind {
         case .receipt, .businessCard, .handwritingOCR, .documentScan:
             withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {

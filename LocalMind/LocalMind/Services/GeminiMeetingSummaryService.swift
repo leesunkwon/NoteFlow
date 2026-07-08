@@ -1,5 +1,6 @@
 import Foundation
 
+// 회의 녹음 결과를 어떤 깊이로 정리할지 선택하는 모드입니다.
 enum MeetingSummaryMode: String, CaseIterable, Identifiable {
     case transcript
     case summary

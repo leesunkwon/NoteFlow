@@ -4,6 +4,7 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+// 메모 작성, 블록 편집, 첨부 파일, AI 보조 기능이 모이는 핵심 편집 화면입니다.
 
 private enum NoteEditorScrollAnchor {
     static let top = "note-editor-top"
@@ -1322,6 +1323,7 @@ struct NoteEditorView: View {
     }
 
     private func apply(_ result: NoteAnalysisResult, action: AIAction) {
+        // AI 제안은 사용자가 고른 적용 방식에 따라 제목, 요약, 태그 중 일부만 반영합니다.
         recordUndoSnapshot()
         switch action {
         case .title:
@@ -1352,6 +1354,7 @@ struct NoteEditorView: View {
     }
 
     private func normalizedTags(_ tags: [String]) -> [String] {
+        // # 기호와 공백을 제거하고 중복을 없앤 뒤 최대 5개만 저장합니다.
         Array(NSOrderedSet(array: tags
             .map {
                 $0.replacingOccurrences(of: "#", with: "")
@@ -1369,6 +1372,7 @@ struct NoteEditorView: View {
             return
         }
 
+        // AI가 만든 글을 기존 메모 뒤에 붙이기 전에 되돌리기 스냅샷을 남깁니다.
         recordUndoSnapshot()
         appendBlocks(from: trimmed)
         hasUserEditedDraft = true
@@ -1401,11 +1405,13 @@ struct NoteEditorView: View {
 
     private func replaceWriting(with result: WritingResult) {
         if result.mode == .summarizeBody {
+            // 본문 요약은 기존 구조 보존보다 새 요약문으로 교체하는 의미가 더 큽니다.
             replaceWriting(with: result.content)
             return
         }
 
         if shouldPreserveBlockStructure(for: result.mode), !result.blocks.isEmpty {
+            // 맞춤법/문장 다듬기는 이미지, 파일, 표 구조를 최대한 깨지 않도록 별도 경로를 탑니다.
             replaceWritingPreservingStructure(with: result)
             return
         }
@@ -1462,15 +1468,18 @@ struct NoteEditorView: View {
     private func compatibleBlockDrafts(for result: WritingResult) -> [AIBlockDraft]? {
         let drafts = AIBlockDraft.sanitized(result.blocks)
         let targets = aiStructureReplacementTargets
+        // 기존 블록 개수와 AI 응답 블록 개수가 같을 때만 1:1 구조 보존 적용을 시도합니다.
         guard !drafts.isEmpty, drafts.count == targets.count else {
             return nil
         }
 
         for (block, draft) in zip(targets, drafts) {
+            // 타입이 바뀌면 사용자가 만든 구조가 깨질 수 있어 구조 보존 적용을 중단합니다.
             guard block.type == draft.normalizedType else {
                 return nil
             }
             if block.type == .table && !hasSameTableShape(block.tableData, draft.tableData) {
+                // 표는 행/열 모양이 같아야 셀 내용만 안전하게 교체할 수 있습니다.
                 return nil
             }
         }
@@ -1490,6 +1499,7 @@ struct NoteEditorView: View {
     }
 
     private func applyCompatibleBlockDrafts(_ drafts: [AIBlockDraft]) {
+        // 검증이 끝난 draft만 기존 블록에 덮어써서 첨부/정렬 정보는 유지합니다.
         for (block, draft) in zip(aiStructureReplacementTargets, drafts) {
             block.text = draft.text
             block.indentLevel = draft.indentLevel
@@ -1562,7 +1572,9 @@ struct NoteEditorView: View {
     }
 
     private func saveUserEdit(recordUndo: Bool = true) {
+        // 편집 화면의 draft 상태를 SwiftData 모델에 반영하는 중심 저장 지점입니다.
         if recordUndo {
+            // 사용자가 직접 편집한 내용도 되돌릴 수 있도록 저장 직전 스냅샷을 남깁니다.
             recordUndoSnapshot()
         }
         hasUserEditedDraft = true

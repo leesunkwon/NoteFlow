@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 긴 AI 처리 중 화면 전체를 덮어 진행 상태와 취소 동작을 보여주는 오버레이입니다.
 struct AIProcessingGradientOverlay: View {
     @State private var animate = false
 

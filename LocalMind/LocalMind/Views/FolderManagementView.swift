@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 
+// 폴더 생성, 이름 변경, 삭제를 한 화면에서 관리하는 설정성 화면입니다.
 struct FolderManagementView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Folder.updatedAt, order: .forward) private var folders: [Folder]

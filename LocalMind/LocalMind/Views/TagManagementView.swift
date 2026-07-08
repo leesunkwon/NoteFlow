@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 
+// 잠기지 않은 메모에서 태그 사용 횟수를 모아 태그 관리 목록으로 보여줍니다.
 struct TagManagementView: View {
     @Query(sort: \NotePage.updatedAt, order: .reverse) private var notes: [NotePage]
 

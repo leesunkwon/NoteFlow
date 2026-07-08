@@ -1,5 +1,6 @@
 import Foundation
 
+// 영수증 이미지에서 지출 정보와 품목을 추출해 메모로 저장할 수 있게 만듭니다.
 struct ReceiptScanItem: Codable, Hashable, Identifiable {
     let id = UUID()
     var name: String

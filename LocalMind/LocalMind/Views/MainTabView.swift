@@ -2,11 +2,12 @@ import SwiftData
 import SwiftUI
 
 enum MainTabLayout {
-    // Small extra breathing room for screens that have their own bottom controls.
-    // Native TabView owns the actual tab bar safe-area protection.
+    // 자체 하단 컨트롤이 있는 화면에서 탭 바와 내용이 붙지 않도록 여백을 둡니다.
+    // 실제 안전 영역 처리는 시스템 TabView가 맡습니다.
     static let bottomContentInset: CGFloat = 32
 }
 
+// 탭 바 위로 리스트 마지막 행이 가려지지 않도록 투명한 여백 행을 추가합니다.
 struct BottomTabBarListSpacer: View {
     var height: CGFloat = MainTabLayout.bottomContentInset
 
@@ -21,8 +22,11 @@ struct BottomTabBarListSpacer: View {
 }
 
 struct MainTabView: View {
+    // 메인 탭에서 새 메모 생성, 백업 저장 등 전역 저장 작업을 수행합니다.
     @Environment(\.modelContext) private var modelContext
+    // 앱이 active로 돌아올 때 iCloud 상태를 다시 확인하기 위해 scenePhase를 봅니다.
     @Environment(\.scenePhase) private var scenePhase
+    // 탭 어디서든 최신 폴더/메모 목록을 기준으로 새 메모와 정리를 처리합니다.
     @Query(sort: \Folder.updatedAt, order: .forward) private var folders: [Folder]
     @Query(sort: \NotePage.updatedAt, order: .reverse) private var notes: [NotePage]
     @AppStorage(TrashCleanupService.autoCleanupStorageKey) private var autoCleanupTrashAfter30Days = false
@@ -91,17 +95,21 @@ struct MainTabView: View {
         }
         .tint(NoteFlowDesign.ink)
         .onChange(of: selectedTab) { oldValue, newValue in
+            // 가운데 작성 탭은 실제 화면이 아니라 새 메모 템플릿 선택을 여는 트리거입니다.
             handleTabSelectionChange(from: oldValue, to: newValue)
         }
         .onAppear {
+            // 첫 진입 시 기본 폴더와 오래된 휴지통 정리 상태를 맞춥니다.
             ensureDefaultFolder()
             cleanupExpiredTrashIfNeeded()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active || phase == .background {
+                // 앱을 닫거나 다시 열 때 휴지통 자동 정리를 한 번 더 시도합니다.
                 cleanupExpiredTrashIfNeeded()
             }
             if phase == .active {
+                // CloudKit import는 시스템이 하지만, 앱은 active 복귀 시 상태 확인 신호를 보냅니다.
                 refreshCloudKitStatus()
             }
         }
@@ -199,9 +207,11 @@ struct MainTabView: View {
     }
 
     private func createNote(template: NoteTemplate) {
+        // 어느 탭에서 작성 버튼을 눌러도 새 메모는 전체 메모 탭에서 열리게 합니다.
         selectedTab = .allNotes
         allNotesPath.removeAll()
 
+        // 템플릿이 만든 초기 블록을 SwiftData에 먼저 넣고 NotePage와 연결합니다.
         let note = NotePage(title: template.noteTitle, body: "", folder: defaultFolder())
         modelContext.insert(note)
         let blocks = template.makeBlocks(for: note)
@@ -209,6 +219,7 @@ struct MainTabView: View {
             modelContext.insert(block)
         }
         note.blocks = blocks
+        // 블록 기반 편집기지만 검색/AI를 위해 평문 body도 함께 맞춥니다.
         note.body = note.composedBlockText
         saveChanges()
         NoteFlowHaptics.success()

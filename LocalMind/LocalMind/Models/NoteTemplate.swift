@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+// 새 메모를 시작할 때 미리 채워 넣을 기본 구조와 안내 문구를 정의합니다.
 enum NoteTemplate: String, CaseIterable, Identifiable {
     case blank
     case journal
@@ -13,6 +14,7 @@ enum NoteTemplate: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        // 템플릿 선택 목록에 보여줄 짧은 이름입니다.
         switch self {
         case .blank:
             return "빈 메모"
@@ -32,6 +34,7 @@ enum NoteTemplate: String, CaseIterable, Identifiable {
     }
 
     var subtitle: String {
+        // 사용자가 어떤 메모 구조가 만들어질지 미리 이해하도록 보조 설명을 제공합니다.
         switch self {
         case .blank:
             return "바로 자유롭게 작성"
@@ -70,6 +73,7 @@ enum NoteTemplate: String, CaseIterable, Identifiable {
     }
 
     var noteTitle: String {
+        // 실제 새 메모에 들어갈 기본 제목입니다. 빈 메모는 제목도 비워둡니다.
         switch self {
         case .blank:
             return ""

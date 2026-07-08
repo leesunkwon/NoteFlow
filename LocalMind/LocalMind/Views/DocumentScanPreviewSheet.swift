@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 문서 스캔 결과를 메모로 저장하기 전에 제목과 본문을 다듬는 시트입니다.
 struct DocumentScanPreviewSheet: View {
     let result: DocumentScanResult
     let save: (DocumentScanResult) -> Void
@@ -58,9 +59,11 @@ struct DocumentScanPreviewSheet: View {
 
     private func normalizedDraft() -> DocumentScanResult {
         var normalized = draft
+        // 사용자가 미리보기에서 입력한 앞뒤 공백은 저장 전에 정리합니다.
         normalized.title = normalized.title.trimmingCharacters(in: .whitespacesAndNewlines)
         normalized.content = normalized.content.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalized.title.isEmpty {
+            // 제목을 비워 저장해도 목록에서 의미가 보이도록 기본 제목을 채웁니다.
             normalized.title = "문서 스캔"
         }
         return normalized

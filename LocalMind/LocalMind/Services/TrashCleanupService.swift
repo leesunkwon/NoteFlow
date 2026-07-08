@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+// 휴지통에 오래 남은 메모를 정리하고, 동기화된 삭제 기록도 함께 남깁니다.
 enum TrashCleanupService {
     static let autoCleanupStorageKey = "autoCleanupTrashAfter30Days"
 

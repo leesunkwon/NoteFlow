@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 새 메모를 만들 때 빈 메모나 회의록 같은 기본 템플릿을 고르는 화면입니다.
 struct NoteTemplatePickerView: View {
     let select: (NoteTemplate) -> Void
     let cancel: () -> Void

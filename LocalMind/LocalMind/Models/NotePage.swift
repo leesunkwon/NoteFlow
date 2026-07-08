@@ -1,28 +1,42 @@
 import Foundation
 import SwiftData
 
+// 사용자가 작성하는 메모 한 장을 나타내며 폴더, 블록, 할 일과 연결됩니다.
 @Model
 final class NotePage {
+    // CloudKit 동기화와 백업/복원에서 같은 메모를 식별하기 위한 고정 ID입니다.
     var id: UUID = UUID()
+    // 사용자가 직접 입력하는 제목입니다. 비어 있으면 displayTitle에서 본문 기반 제목을 만듭니다.
     var title: String = ""
+    // 검색, AI 입력, 구버전 호환을 위해 블록과 별도로 유지하는 평문 본문입니다.
     var body: String = ""
+    // AI 분석 결과나 사용자가 저장한 메모 요약입니다.
     var summary: String = ""
+    // 태그는 별도 모델 없이 문자열 배열로 저장해 검색/분류에 사용합니다.
     var tags: [String] = []
+    // 생성일과 수정일은 목록 정렬, 동기화 병합, 백업 복원 판단에 쓰입니다.
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
+    // 즐겨찾기 탭에서 빠르게 필터링하기 위한 표시 상태입니다.
     var isFavorite: Bool = false
+    // 잠긴 메모는 목록/검색에서 내용을 숨기고 열 때 인증을 요구합니다.
     var isLocked: Bool = false
+    // 값이 있으면 휴지통에 있는 메모로 취급하고, nil이면 일반 메모입니다.
     var deletedAt: Date?
+    // AI 결과 적용 전 상태를 저장해 사용자가 되돌릴 수 있게 합니다.
     var lastAIUndoBody: String?
     var lastAIUndoTitle: String?
     var lastAIUndoSummary: String?
     var lastAIUndoTags: [String]?
     var lastAIUndoBlocks: String?
+    // CloudKit 호환을 위해 관계는 optional로 유지합니다.
     var folder: Folder?
 
+    // 메모가 삭제되면 연결된 할 일도 같이 삭제되도록 cascade를 사용합니다.
     @Relationship(deleteRule: .cascade, inverse: \TaskItem.note)
     var tasks: [TaskItem]?
 
+    // 블록도 메모의 하위 데이터이므로 메모 삭제 시 함께 정리합니다.
     @Relationship(deleteRule: .cascade, inverse: \NoteBlock.note)
     var blocks: [NoteBlock]?
 
@@ -67,6 +81,7 @@ final class NotePage {
     }
 
     var displayTitle: String {
+        // 제목이 있으면 그대로 쓰고, 없으면 본문 첫 부분으로 목록용 제목을 만듭니다.
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedTitle.isEmpty {
             return trimmedTitle
@@ -77,10 +92,12 @@ final class NotePage {
     }
 
     func touch() {
+        // SwiftData @Query 정렬과 CloudKit 병합 기준이 되도록 수정 시각을 갱신합니다.
         updatedAt = Date.now
     }
 
     var isEmptyDraft: Bool {
+        // 새 메모를 열었다가 아무것도 입력하지 않고 닫을 때 임시 메모를 삭제하기 위한 판정입니다.
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -94,6 +111,7 @@ final class NotePage {
     }
 
     var sortedBlocks: [NoteBlock] {
+        // sortIndex가 같으면 생성일로 한 번 더 정렬해 블록 순서가 흔들리지 않게 합니다.
         (blocks ?? []).sorted {
             if $0.sortIndex == $1.sortIndex {
                 return $0.createdAt < $1.createdAt
@@ -107,6 +125,7 @@ final class NotePage {
     }
 
     static func composeText(from blocks: [NoteBlock]) -> String {
+        // 블록 구조를 검색/AI 입력에 쓰기 쉬운 평문으로 다시 합칩니다.
         blocks
             .map { block in
                 switch block.type {

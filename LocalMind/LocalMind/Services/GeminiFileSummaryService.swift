@@ -2,6 +2,7 @@ import Foundation
 import PDFKit
 import UniformTypeIdentifiers
 
+// 파일 내용을 읽어 Gemini 요약 요청에 사용할 텍스트와 원본 데이터를 준비합니다.
 struct FileSummaryResult: Identifiable {
     let id = UUID()
     var title: String
@@ -20,8 +21,11 @@ struct FileSummaryInput {
 
 enum FileSummaryInputReader {
     static func read(url: URL) throws -> FileSummaryInput {
+        // 파일명은 결과 미리보기와 Gemini 프롬프트에 함께 사용됩니다.
         let fileName = url.lastPathComponent
+        // 확장자로 읽기 방식과 MIME 타입을 결정합니다.
         let extensionName = url.pathExtension.lowercased()
+        // 파일 원본 데이터는 텍스트 추출 실패 시 Gemini에 직접 첨부할 수 있게 보관합니다.
         let data = try Data(contentsOf: url)
         guard !data.isEmpty else {
             throw FileSummaryError.emptyFile
@@ -29,6 +33,7 @@ enum FileSummaryInputReader {
 
         let mimeType = mimeType(for: extensionName)
         let extractedText: String
+        // 파일 종류마다 텍스트를 꺼내는 방식이 다르므로 확장자별로 분기합니다.
         switch extensionName {
         case "txt", "md", "csv":
             extractedText = String(data: data, encoding: .utf8)
@@ -47,6 +52,7 @@ enum FileSummaryInputReader {
         return FileSummaryInput(
             fileName: fileName,
             mimeType: mimeType,
+            // 줄 단위 공백을 정리해 Gemini에 불필요한 빈 줄을 보내지 않습니다.
             text: cleaned(extractedText),
             data: data
         )
@@ -57,6 +63,7 @@ enum FileSummaryInputReader {
             return ""
         }
 
+        // PDF는 페이지별 문자열을 뽑아 문단 단위로 이어 붙입니다.
         return (0..<document.pageCount)
             .compactMap { index in document.page(at: index)?.string }
             .joined(separator: "\n\n")
@@ -98,6 +105,7 @@ enum FileSummaryInputReader {
     }
 
     private static func cleaned(_ text: String) -> String {
+        // 추출 텍스트는 줄마다 공백을 제거하고 비어 있는 줄은 버립니다.
         text
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -115,6 +123,7 @@ enum GeminiFileSummaryService {
         guard var components = URLComponents(string: endpoint) else {
             throw FileSummaryError.invalidURL
         }
+        // Gemini API key는 query item으로 붙이는 방식의 REST API를 사용합니다.
         let apiKey = try GeminiAPIKeyProvider.requireAPIKey()
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
@@ -126,6 +135,7 @@ enum GeminiFileSummaryService {
             throw FileSummaryError.emptyFile
         }
 
+        // 파일 요약은 텍스트 추출과 원본 첨부가 있어 다른 AI 작업보다 timeout을 길게 둡니다.
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 90
@@ -135,8 +145,10 @@ enum GeminiFileSummaryService {
             FileSummaryPart(text: prompt(fileName: fileName, hasExtractedText: !trimmedText.isEmpty))
         ]
         if !trimmedText.isEmpty {
+            // 텍스트를 추출할 수 있으면 원본 파일 대신 정리된 텍스트를 보내 비용과 실패 가능성을 줄입니다.
             parts.append(FileSummaryPart(text: trimmedText))
         } else if let fileData {
+            // 텍스트 추출이 어려운 파일은 base64 inline data로 Gemini에 직접 전달합니다.
             parts.append(FileSummaryPart(inlineData: FileSummaryInlineData(
                 mimeType: mimeType,
                 data: fileData.base64EncodedString()
@@ -150,6 +162,7 @@ enum GeminiFileSummaryService {
         request.httpBody = try JSONEncoder().encode(requestBody)
         let data = try await GeminiServiceError.responseData(for: request, updateStage: updateStage)
 
+        // Gemini 응답은 candidates 배열 안의 text 조각들을 이어 붙여 실제 JSON 문자열로 꺼냅니다.
         let decoded = try GeminiServiceError.decode(FileSummaryGenerateContentResponse.self, from: data)
         guard let responseText = decoded.candidates.first?.content.parts.compactMap(\.text).joined(separator: "\n"),
               !responseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

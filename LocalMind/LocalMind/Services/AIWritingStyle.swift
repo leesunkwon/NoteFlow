@@ -1,5 +1,6 @@
 import Foundation
 
+// AI 글쓰기 결과의 톤을 사용자가 고를 수 있도록 저장하는 스타일 설정입니다.
 enum AIWritingStyle: String, CaseIterable, Identifiable {
     case standard
     case concise

@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+// 앱 설정, AI 제공자, iCloud 상태, 백업/복원 기능을 관리하는 설정 화면입니다.
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Folder.updatedAt, order: .forward) private var folders: [Folder]
@@ -444,6 +445,7 @@ private struct CloudBackupSettingsView: View {
     }
 
     private func refreshCloudKitStatus() {
+        // 버튼을 누른 즉시 “확인 중” 상태를 보여주고 비동기로 실제 계정 상태를 가져옵니다.
         cloudKitState = .checking
 
         Task {
@@ -453,6 +455,7 @@ private struct CloudBackupSettingsView: View {
 
     private func exportBackup() {
         do {
+            // 현재 SwiftData 데이터를 백업 문서로 만든 뒤 fileExporter를 띄웁니다.
             backupDocument = NoteFlowBackupDocument(
                 data: try NoteFlowBackupService.exportBackup(
                     folders: folders,
@@ -473,6 +476,7 @@ private struct CloudBackupSettingsView: View {
                 return
             }
 
+            // 파일 앱에서 넘어온 URL은 보안 범위 접근을 열어야 내용을 읽을 수 있습니다.
             let didAccess = url.startAccessingSecurityScopedResource()
             defer {
                 if didAccess {
@@ -481,6 +485,7 @@ private struct CloudBackupSettingsView: View {
             }
 
             let data = try Data(contentsOf: url)
+            // 바로 가져오지 않고 먼저 요약 화면을 보여줘 병합/전체 교체를 선택하게 합니다.
             importSummary = try NoteFlowBackupService.preview(data: data)
         } catch {
             backupError = "\(error.localizedDescription)\n\n\(String(describing: error))"
@@ -489,6 +494,7 @@ private struct CloudBackupSettingsView: View {
 
     private func importBackup(_ backup: NoteFlowBackup, mode: NoteFlowBackupImportMode) {
         do {
+            // 미리보기에서 들고 있던 백업 모델을 다시 Data로 인코딩해 공통 import 함수를 재사용합니다.
             let data = try NoteFlowBackupService.encodedData(backup)
             try NoteFlowBackupService.importBackup(data: data, mode: mode, modelContext: modelContext)
             importSummary = nil
@@ -499,6 +505,7 @@ private struct CloudBackupSettingsView: View {
     }
 
     private func forceUploadBackup() {
+        // 강제 업로드는 CloudKit이 아니라 현재 기기 데이터를 iCloud Drive 백업 파일로 저장합니다.
         isForceBackupInProgress = true
         defer {
             isForceBackupInProgress = false
@@ -517,6 +524,7 @@ private struct CloudBackupSettingsView: View {
     }
 
     private func forceDownloadBackup() {
+        // 강제 불러오기는 백업 파일을 기준으로 현재 기기 데이터를 전체 교체합니다.
         isForceBackupInProgress = true
         defer {
             isForceBackupInProgress = false

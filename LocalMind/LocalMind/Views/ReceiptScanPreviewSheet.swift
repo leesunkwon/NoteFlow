@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 영수증 스캔 결과를 지출 정보, 품목, 메모 내용으로 나눠 확인하는 시트입니다.
 struct ReceiptScanPreviewSheet: View {
     let result: ReceiptScanResult
     let save: (ReceiptScanResult) -> Void

@@ -1,8 +1,10 @@
 import Foundation
 import SwiftData
 
+// 사용자가 명시적으로 누르는 강제 업로드/불러오기를 iCloud Drive 백업 파일로 처리합니다.
 enum NoteFlowForceBackupService {
     private static let containerIdentifier = "iCloud.kotlinsun.LocalMind"
+    // 이 경로는 CloudKit 실시간 동기화가 아니라 iCloud Drive 복구용 백업 파일입니다.
     private static let relativeBackupPath = "Documents/NoteFlow/ManualBackup"
     private static let backupFileName = "NoteFlow-ForceBackup.noteflowbackup"
 
@@ -12,12 +14,14 @@ enum NoteFlowForceBackupService {
         notes: [NotePage],
         tombstones: [DeletedNoteTombstone]
     ) throws {
+        // 고정 백업 파일 위치를 만들고 현재 SwiftData 내용을 JSON 백업으로 직렬화합니다.
         let fileURL = try backupFileURL(createDirectory: true)
         let data = try NoteFlowBackupService.exportBackup(
             folders: folders,
             notes: notes,
             tombstones: tombstones
         )
+        // atomic 옵션은 쓰기 중 앱이 종료되어도 깨진 파일이 남을 가능성을 줄입니다.
         try data.write(to: fileURL, options: [.atomic])
     }
 
@@ -29,24 +33,29 @@ enum NoteFlowForceBackupService {
         }
 
         if try isUbiquitousItem(fileURL) {
+            // iCloud Drive 파일이 아직 로컬에 없을 수 있어 다운로드를 먼저 요청합니다.
             try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
             let status = try downloadingStatus(for: fileURL)
             if status.isWaitingForDownload {
+                // 다운로드가 끝나지 않은 상태에서 가져오면 빈/불완전 파일을 읽을 수 있어 중단합니다.
                 throw NoteFlowForceBackupError.backupDownloading
             }
         }
 
+        // 복구용 강제 불러오기는 항상 전체 교체로 동작합니다.
         let data = try coordinatedDataRead(from: fileURL)
         try NoteFlowBackupService.importBackup(data: data, mode: .replace, modelContext: modelContext)
     }
 
     private static func backupFileURL(createDirectory: Bool) throws -> URL {
+        // iCloud Drive 컨테이너를 찾지 못하면 사용자가 iCloud Drive를 쓸 수 없는 상태입니다.
         guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerIdentifier) else {
             throw NoteFlowForceBackupError.iCloudUnavailable
         }
 
         let directoryURL = containerURL.appendingPathComponent(relativeBackupPath, isDirectory: true)
         if createDirectory {
+            // 업로드 때만 폴더를 만들고, 다운로드 때는 없는 폴더를 만들지 않아 “백업 없음”을 구분합니다.
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         }
         return directoryURL.appendingPathComponent(backupFileName)
@@ -70,6 +79,7 @@ enum NoteFlowForceBackupService {
     }
 
     private static func coordinatedDataRead(from fileURL: URL) throws -> Data {
+        // iCloud Drive가 파일 다운로드/동기화 작업을 마친 뒤 읽도록 파일 접근을 조정합니다.
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinationError: NSError?
         var readResult: Result<Data, Error>?

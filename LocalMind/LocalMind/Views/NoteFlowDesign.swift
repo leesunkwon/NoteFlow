@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 
+// 앱 전반에서 반복해서 쓰는 색상, 반경, 햅틱 스타일을 한곳에 모읍니다.
 enum NoteFlowDesign {
     static let ink = Color(red: 17 / 255, green: 17 / 255, blue: 17 / 255)
     static let charcoal = Color(red: 57 / 255, green: 57 / 255, blue: 59 / 255)

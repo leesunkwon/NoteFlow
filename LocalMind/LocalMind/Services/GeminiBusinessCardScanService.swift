@@ -1,5 +1,6 @@
 import Foundation
 
+// 명함 이미지에서 이름, 회사, 연락처를 추출해 연락처형 메모로 저장할 수 있게 만듭니다.
 struct BusinessCardScanResult: Identifiable {
     let id = UUID()
     var title: String

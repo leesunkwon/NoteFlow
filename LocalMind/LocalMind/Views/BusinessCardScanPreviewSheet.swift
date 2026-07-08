@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 명함 스캔 결과를 연락처 정보와 메모 본문으로 나눠 확인하는 미리보기 시트입니다.
 struct BusinessCardScanPreviewSheet: View {
     let result: BusinessCardScanResult
     let save: (BusinessCardScanResult) -> Void

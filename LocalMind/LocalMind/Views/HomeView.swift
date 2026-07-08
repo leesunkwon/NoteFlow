@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 
+// 메모 목록, 폴더 필터, 검색, 휴지통 흐름을 담당하는 홈 화면입니다.
 enum NoteSortOption: String, CaseIterable, Identifiable {
     case createdAt
     case updatedAt
@@ -260,6 +261,7 @@ struct HomeView: View {
     }
 
     private func ensureDefaultFolder() {
+        // 폴더가 없는 기존 메모가 있다면 앱 기본 폴더에 묶어 목록 구조를 안정화합니다.
         let defaultFolder = defaultFolder()
         for note in notes where note.folder == nil {
             note.folder = defaultFolder
@@ -268,16 +270,19 @@ struct HomeView: View {
     }
 
     private func defaultFolder() -> Folder {
+        // “메모” 폴더가 있으면 우선 사용하고, 없으면 첫 폴더를 기본값으로 삼습니다.
         if let existing = folders.first(where: { $0.name == "메모" }) ?? folders.first {
             return existing
         }
 
+        // 폴더가 하나도 없으면 즉시 기본 폴더를 만들어 새 메모가 고아 상태가 되지 않게 합니다.
         let folder = Folder(name: "메모")
         modelContext.insert(folder)
         return folder
     }
 
     private func createFolder() {
+        // 사용자가 공백만 입력한 경우에는 빈 폴더를 만들지 않습니다.
         let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
             return
@@ -322,6 +327,7 @@ struct HomeView: View {
             return
         }
 
+        // 폴더 삭제 전에 포함된 메모를 다른 폴더로 옮겨 메모가 사라지지 않게 합니다.
         let targetFolder = defaultFolder(excluding: folderToDelete)
 
         for note in notes where note.folder?.id == folderToDelete.id {
@@ -357,6 +363,7 @@ struct HomeView: View {
     }
 
     private func createNote(template: NoteTemplate) {
+        // 템플릿은 제목과 초기 블록을 함께 만들기 때문에 NotePage 생성 직후 블록도 삽입합니다.
         let note = NotePage(title: template.noteTitle, body: "", folder: defaultFolder())
         modelContext.insert(note)
         let blocks = template.makeBlocks(for: note)
@@ -364,10 +371,12 @@ struct HomeView: View {
             modelContext.insert(block)
         }
         note.blocks = blocks
+        // 블록 기반 본문과 검색용 평문 body를 생성 직후 동기화합니다.
         note.body = note.composedBlockText
         saveChanges()
         NoteFlowHaptics.success()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // 저장 직후 바로 편집 화면으로 이동하면 SwiftData 반영 타이밍과 겹칠 수 있어 살짝 늦춥니다.
             path.append(.note(note, isNewDraft: true, readOnly: false))
         }
     }
@@ -387,6 +396,7 @@ struct HomeView: View {
         do {
             try modelContext.save()
         } catch {
+            // 저장 실패는 alert로 보여줄 수 있게 문자열 상태에 담아둡니다.
             persistenceError = "\(error.localizedDescription)\n\n\(String(describing: error))"
         }
     }
@@ -402,6 +412,7 @@ struct HomeView: View {
 
     @MainActor
     private func refreshCloudKitStatus() async {
+        // pull-to-refresh는 서버 강제 fetch가 아니라 iCloud 계정 상태 재확인 UI입니다.
         refreshStatusMessage = "최신 데이터 확인 중"
         let state = await NoteFlowCloudKitStatusService.currentState()
         refreshStatusMessage = state.title
@@ -638,6 +649,7 @@ struct NotesListView: View {
     private func unlockAndOpen(_ note: NotePage, readOnly: Bool) {
         authenticatingNoteID = note.id
         Task {
+            // Face ID/암호 인증은 비동기이므로 성공했을 때만 라우팅을 이어갑니다.
             let success = await NoteLockAuthenticator.authenticate(reason: "잠긴 메모를 열려면 인증이 필요합니다.")
             authenticatingNoteID = nil
             if success {
@@ -679,6 +691,7 @@ struct NotesListView: View {
 
     private func deleteNotes(at offsets: IndexSet) {
         if source.isTrash {
+            // 휴지통에서는 swipe delete가 영구 삭제 확인 흐름으로 이어집니다.
             confirmPermanentDelete(offsets.compactMap { index in
                 visibleNotes.indices.contains(index) ? visibleNotes[index] : nil
             })
@@ -691,6 +704,7 @@ struct NotesListView: View {
     }
 
     private func moveToTrash(_ note: NotePage) {
+        // 즉시 삭제하지 않고 deletedAt을 채워 휴지통 목록으로 이동시킵니다.
         note.deletedAt = .now
         note.touch()
         saveChanges()
@@ -709,6 +723,7 @@ struct NotesListView: View {
 
     private func permanentlyDeletePendingNotes() {
         for note in notesPendingPermanentDelete {
+            // CloudKit 동기화에서 다른 기기도 삭제를 알 수 있도록 tombstone을 먼저 남깁니다.
             DeletedNoteTombstoneService.recordPermanentDeletion(of: note, in: modelContext)
             modelContext.delete(note)
         }

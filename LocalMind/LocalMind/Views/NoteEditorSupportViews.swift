@@ -3,6 +3,7 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+// NoteEditorView가 너무 커지지 않도록 스냅샷, 블록 행, 보조 UI를 분리한 파일입니다.
 struct NoteEditSnapshot: Equatable {
     var title: String
     var body: String

@@ -1,6 +1,8 @@
 import Foundation
 
+// Gemini 요청 실패를 사용자가 이해할 수 있는 안내 문구로 바꾸는 공통 오류 타입입니다.
 enum GeminiServiceError: LocalizedError {
+    // 키 누락처럼 요청 전에 알 수 있는 오류와 네트워크/응답 오류를 분리합니다.
     case missingAPIKey
     case invalidURL
     case network(URLError.Code)
@@ -11,6 +13,7 @@ enum GeminiServiceError: LocalizedError {
     case unsupportedFile
 
     var errorDescription: String? {
+        // LocalizedError를 채택하면 alert에서 errorDescription을 바로 사용할 수 있습니다.
         switch self {
         case .missingAPIKey:
             return "Gemini API 키가 설정되어 있지 않습니다. LocalMind/Config/Secrets.xcconfig에 GEMINI_API_KEY 값을 추가한 뒤 앱을 다시 빌드해 주세요."
@@ -35,6 +38,7 @@ enum GeminiServiceError: LocalizedError {
     }
 
     static func message(for error: Error, fallback: String) -> String {
+        // Gemini 전용 오류면 가장 구체적인 사용자 안내를 우선 사용합니다.
         if let geminiError = error as? GeminiServiceError,
            let message = geminiError.errorDescription {
             return message
@@ -43,11 +47,13 @@ enum GeminiServiceError: LocalizedError {
            let message = localizedError.errorDescription {
             return message
         }
+        // 알 수 없는 Error도 화면에는 최소한의 안내 문구를 보여주기 위한 fallback입니다.
         return fallback
     }
 
     static func responseData(for request: URLRequest, updateStage: ((AIProcessingStage) async -> Void)? = nil) async throws -> Data {
         do {
+            // 실제 네트워크 요청 직전에 오버레이 문구를 Gemini 요청 단계로 바꿉니다.
             await updateStage?(.requestingGemini)
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -56,6 +62,7 @@ enum GeminiServiceError: LocalizedError {
             guard (200..<300).contains(httpResponse.statusCode) else {
                 throw GeminiServiceError.requestFailed(statusCode: httpResponse.statusCode)
             }
+            // 응답을 받은 뒤 JSON decode 전에 파싱 단계로 표시합니다.
             await updateStage?(.parsingResponse)
             return data
         } catch let error as GeminiServiceError {
@@ -71,11 +78,13 @@ enum GeminiServiceError: LocalizedError {
         do {
             return try JSONDecoder().decode(type, from: data)
         } catch {
+            // 원본 decode 오류 대신 앱에서 통일해서 처리하는 JSON 오류로 감쌉니다.
             throw GeminiServiceError.invalidJSON
         }
     }
 
     private func networkMessage(for code: URLError.Code) -> String {
+        // URLError.Code별로 사용자가 실제로 확인할 수 있는 원인을 다르게 안내합니다.
         switch code {
         case .notConnectedToInternet, .networkConnectionLost:
             return "인터넷 연결이 불안정합니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요."

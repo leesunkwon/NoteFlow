@@ -1,7 +1,9 @@
 import Foundation
 import SwiftData
 
+// NoteFlow 편집기의 블록 종류를 정의하고, 화면 표시 이름과 아이콘을 제공합니다.
 enum BlockType: String, CaseIterable, Identifiable {
+    // rawValue는 SwiftData 저장값이자 AI 응답 payload의 type 값과 맞춰 사용합니다.
     case text
     case heading1
     case heading2
@@ -20,6 +22,7 @@ enum BlockType: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        // 화면에는 내부 저장값 대신 한국어 이름을 보여줍니다.
         switch self {
         case .text:
             return "텍스트"
@@ -83,6 +86,7 @@ enum BlockType: String, CaseIterable, Identifiable {
 }
 
 struct BlockMetadata: Codable {
+    // 파일/이미지/콜아웃처럼 블록별 부가 정보가 필요한 데이터를 한 구조에 묶습니다.
     var fileName: String
     var mimeType: String
     var caption: String
@@ -106,16 +110,27 @@ struct BlockMetadata: Codable {
 
 @Model
 final class NoteBlock {
+    // 블록은 드래그 이동과 편집 대상이 되므로 UUID로 안정적으로 식별합니다.
     var id: UUID = UUID()
+    // BlockType을 직접 저장하지 않고 문자열로 저장해 알 수 없는 값도 fallback 처리할 수 있게 합니다.
     var typeRaw: String = BlockType.text.rawValue
+    // 블록의 주요 텍스트입니다. 이미지/파일 블록에서는 캡션이나 파일명 역할도 합니다.
     var text: String = ""
+    // 테이블 데이터는 SwiftData 저장을 위해 JSON 문자열로 직렬화합니다.
     var tableDataRaw: String = ""
+    // 목록/하위 블록 표현을 위한 들여쓰기 깊이입니다.
     var indentLevel: Int = 0
+    // 토글이나 중첩 구조에서 부모 블록을 찾기 위한 ID입니다.
     var parentBlockID: UUID?
+    // 토글 블록처럼 접고 펼치는 UI 상태를 저장합니다.
     var isExpanded: Bool = true
+    // 파일명, mimeType, 콜아웃 색상 같은 부가 정보를 JSON 문자열로 저장합니다.
     var metadataRaw: String = ""
+    // 첨부 데이터는 DB 파일 밖 별도 저장을 허용해 SwiftData 저장소 부담을 줄입니다.
     @Attribute(.externalStorage) var attachmentData: Data?
+    // 체크리스트 블록의 완료 상태입니다.
     var isChecked: Bool = false
+    // 사용자가 보는 블록 순서를 안정적으로 유지하기 위한 정렬 값입니다.
     var sortIndex: Int = 0
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now

@@ -3,6 +3,7 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+// 백업 파일 확장자를 시스템 파일 가져오기/내보내기에서 인식시키기 위한 타입입니다.
 extension UTType {
     static let noteFlowBackup = UTType("com.noteflow.backup") ?? .json
 }
@@ -156,6 +157,7 @@ enum NoteFlowBackupImportMode: String, CaseIterable, Identifiable {
 enum NoteFlowBackupService {
     static func defaultFileName(date: Date = .now) -> String {
         let formatter = DateFormatter()
+        // 파일명에 시간을 넣어 여러 수동 백업을 구분할 수 있게 합니다.
         formatter.dateFormat = "yyyyMMdd-HHmm"
         return "NoteFlow-Backup-\(formatter.string(from: date)).noteflowbackup"
     }
@@ -166,6 +168,7 @@ enum NoteFlowBackupService {
         notes: [NotePage],
         tombstones: [DeletedNoteTombstone] = []
     ) throws -> Data {
+        // SwiftData 모델을 직접 파일로 저장하지 않고, Codable 백업 모델로 한 번 변환합니다.
         let backup = NoteFlowBackup(
             version: 1,
             exportedAt: .now,
@@ -175,6 +178,7 @@ enum NoteFlowBackupService {
         )
 
         let encoder = JSONEncoder()
+        // 사람이 열어봐도 구조를 이해하기 쉽도록 prettyPrinted와 sortedKeys를 사용합니다.
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(backup)
@@ -195,6 +199,7 @@ enum NoteFlowBackupService {
     static func importBackup(data: Data, mode: NoteFlowBackupImportMode, modelContext: ModelContext) throws {
         let backup = try decode(data: data)
 
+        // 전체 교체는 현재 저장소를 비운 뒤 백업 파일을 기준 데이터로 다시 채웁니다.
         if mode == .replace {
             try deleteCurrentData(modelContext: modelContext)
         }
@@ -202,10 +207,12 @@ enum NoteFlowBackupService {
         let existingFolders = try modelContext.fetch(FetchDescriptor<Folder>())
         var existingNotes = try modelContext.fetch(FetchDescriptor<NotePage>())
         let existingTombstones = try modelContext.fetch(FetchDescriptor<DeletedNoteTombstone>())
+        // id 기반 Dictionary로 만들어 백업 데이터와 기존 데이터를 빠르게 대조합니다.
         var folderMap = Dictionary(uniqueKeysWithValues: existingFolders.map { ($0.id, $0) })
         let existingNoteIDs = Set(existingNotes.map(\.id))
         var tombstoneMap = Dictionary(uniqueKeysWithValues: existingTombstones.map { ($0.noteID, $0) })
 
+        // 삭제 기록을 먼저 반영해야 이미 지워진 메모가 백업 병합으로 되살아나지 않습니다.
         for tombstoneBackup in backup.deletedNotes {
             if let existing = tombstoneMap[tombstoneBackup.noteID] {
                 if tombstoneBackup.updatedAt >= existing.updatedAt {
@@ -221,6 +228,7 @@ enum NoteFlowBackupService {
         }
 
         for note in existingNotes {
+            // tombstone이 더 최신이면 백업/로컬에 남아 있는 메모라도 삭제 상태를 우선합니다.
             guard let tombstone = tombstoneMap[note.id], tombstone.updatedAt >= note.updatedAt else {
                 continue
             }
@@ -242,6 +250,7 @@ enum NoteFlowBackupService {
         }
 
         let defaultFolder = folderMap.values.first ?? {
+            // 백업에 폴더가 전혀 없을 때도 메모가 들어갈 기본 폴더를 보장합니다.
             let folder = Folder(name: "메모")
             modelContext.insert(folder)
             folderMap[folder.id] = folder
@@ -250,6 +259,7 @@ enum NoteFlowBackupService {
 
         for noteBackup in backup.notes {
             if tombstonedNoteIDs.contains(noteBackup.id) {
+                // 삭제 기록이 있는 메모는 가져오지 않아 다른 기기 삭제 상태를 유지합니다.
                 continue
             }
 

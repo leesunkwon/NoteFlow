@@ -1,6 +1,7 @@
 import Foundation
 import FoundationModels
 
+// 메모 편집 화면의 AI 분석/글쓰기 요청을 Apple Intelligence, Gemini, 로컬 fallback으로 분기합니다.
 fileprivate var selectedAIWritingStyle: AIWritingStyle {
     let rawValue = UserDefaults.standard.string(forKey: AIWritingStyle.storageKey)
     return rawValue.flatMap(AIWritingStyle.init(rawValue:)) ?? .defaultStyle
@@ -47,6 +48,7 @@ struct AIWritingResponse {
 
 enum LocalMindAIService {
     static func analyze(_ body: String) async -> NoteAnalysisResult {
+        // 블록 정보가 없는 호출도 같은 내부 흐름을 타도록 빈 배열을 넘깁니다.
         await analyze(body: body, blocks: [])
     }
     
@@ -61,6 +63,7 @@ enum LocalMindAIService {
             return .empty
         }
 
+        // 사용자가 고른 제공자에 따라 온디바이스 AI와 Gemini 요청 흐름을 분리합니다.
         switch selectedProvider {
         case .appleIntelligence:
             return await analyzeWithFoundationModelsOrFallback(normalized, blocks: blocks)
@@ -70,6 +73,7 @@ enum LocalMindAIService {
     }
 
     private static var selectedProvider: AIProvider {
+        // 설정 화면에서 고른 AI 제공자를 UserDefaults에서 읽고, 없으면 Apple Intelligence를 기본값으로 씁니다.
         let rawValue = UserDefaults.standard.string(forKey: AIProvider.storageKey)
         return rawValue.flatMap(AIProvider.init(rawValue:)) ?? .defaultProvider
     }
@@ -77,6 +81,7 @@ enum LocalMindAIService {
     private static func analyzeWithFoundationModelsOrFallback(_ body: String, blocks: [AIBlockContext]) async -> NoteAnalysisResult {
         let model = SystemLanguageModel.default
 
+        // FoundationModels는 기기/설정/모델 준비 상태에 따라 사용할 수 없을 수 있습니다.
         switch model.availability {
         case .available:
             return await analyzeWithFoundationModels(body, blocks: blocks)
@@ -445,6 +450,7 @@ private enum GeminiAIClient {
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
 
     static func analyze(_ body: String, blocks: [AIBlockContext]) async -> NoteAnalysisResult {
+        // Gemini는 JSON만 반환하도록 systemInstruction에서 강하게 제한합니다.
         let systemInstruction = """
         당신은 한국어 메모 앱의 개인 비서입니다.
         사용자의 원문을 과장하지 않고, 없는 사실을 만들지 않습니다.
@@ -468,6 +474,7 @@ private enum GeminiAIClient {
         """
 
         do {
+            // 텍스트 생성, JSON 파싱, 앱 모델 변환을 순서대로 수행합니다.
             let text = try await generateContent(systemInstruction: systemInstruction, prompt: prompt, wantsJSON: true)
             let analysis = try decodeAnalysis(from: text)
             return NoteAnalysisResult(
@@ -478,6 +485,7 @@ private enum GeminiAIClient {
                 statusMessage: "Gemini로 정리 완료"
             )
         } catch {
+            // Gemini 실패가 메모 편집 전체 실패로 이어지지 않도록 로컬 정리로 대체합니다.
             let reason = GeminiServiceError.message(
                 for: error,
                 fallback: "Gemini 응답 실패로 로컬 정리 사용"

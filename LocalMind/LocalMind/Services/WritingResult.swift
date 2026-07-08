@@ -1,5 +1,6 @@
 import Foundation
 
+// AI 글쓰기 요청의 종류를 구분해 결과 미리보기와 상태 문구에 사용합니다.
 enum WritingMode: String {
     case summarizeBody
     case expand

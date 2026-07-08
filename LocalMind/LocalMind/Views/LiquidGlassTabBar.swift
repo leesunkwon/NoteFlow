@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 기본 탭 구조 위에 NoteFlow 스타일의 유리 느낌 탭 바를 그리는 UI 컴포넌트입니다.
 struct LiquidGlassTabBar: View {
     let selectedTab: MainTab
     let selectTab: (MainTab) -> Void

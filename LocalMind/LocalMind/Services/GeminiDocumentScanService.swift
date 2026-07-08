@@ -1,5 +1,6 @@
 import Foundation
 
+// 인쇄 문서 이미지를 OCR처럼 읽어 제목, 문단, 표 구조를 가진 메모로 변환합니다.
 struct DocumentScanResult: Identifiable {
     let id = UUID()
     var title: String

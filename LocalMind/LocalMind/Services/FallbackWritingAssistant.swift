@@ -1,10 +1,13 @@
 import Foundation
 
+// 외부 AI를 사용할 수 없을 때도 사용자가 기본적인 글쓰기 보조를 받을 수 있게 합니다.
 enum FallbackWritingAssistant {
     static func write(_ body: String, mode: WritingMode, reason: String? = nil) -> WritingResult {
+        // fallback은 외부 AI 없이 문자열 규칙만 쓰므로 원문 공백을 먼저 정리합니다.
         let normalized = body.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let content: String
+        // WritingMode에 따라 최소한의 로컬 글쓰기 보조 결과를 다르게 만듭니다.
         switch mode {
         case .summarizeBody:
             content = summarize(normalized)
@@ -47,6 +50,7 @@ enum FallbackWritingAssistant {
 
     private static func polish(_ body: String) -> String {
         let lines = body
+            // 빈 줄을 제거하고 각 줄 끝에 기본 문장부호가 있는지 확인합니다.
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -62,6 +66,7 @@ enum FallbackWritingAssistant {
 
     private static func proofread(_ body: String) -> String {
         body
+            // 정교한 맞춤법 검사는 아니고, 중복 공백과 양끝 공백만 정리하는 안전한 fallback입니다.
             .components(separatedBy: .newlines)
             .map { line in
                 line
@@ -74,6 +79,7 @@ enum FallbackWritingAssistant {
 
     private static func summarize(_ body: String) -> String {
         let lines = body
+            // fallback 요약은 의미 분석 대신 앞쪽 핵심 줄 몇 개를 남기는 방식입니다.
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

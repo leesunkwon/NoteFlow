@@ -1,5 +1,6 @@
 import Foundation
 
+// 손글씨 이미지를 Gemini에 보내 NoteFlow에서 바로 저장할 수 있는 블록 메모로 변환합니다.
 struct HandwritingOCRResult: Identifiable {
     let id = UUID()
     var title: String

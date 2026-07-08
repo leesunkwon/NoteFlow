@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 파일 요약 결과를 저장하기 전에 제목과 본문을 사용자가 확인하고 수정하는 시트입니다.
 struct FileSummaryPreviewSheet: View {
     let result: FileSummaryResult
     let save: (FileSummaryResult) -> Void
@@ -66,10 +67,12 @@ struct FileSummaryPreviewSheet: View {
 
     private func normalizedDraft() -> FileSummaryResult {
         var normalized = draft
+        // 저장 전 제목/요약/본문의 앞뒤 공백을 정리해 메모 품질을 일정하게 유지합니다.
         normalized.title = normalized.title.trimmingCharacters(in: .whitespacesAndNewlines)
         normalized.summary = normalized.summary.trimmingCharacters(in: .whitespacesAndNewlines)
         normalized.content = normalized.content.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalized.title.isEmpty {
+            // 사용자가 제목을 지웠다면 파일명을 제목으로 써서 출처를 잃지 않게 합니다.
             normalized.title = normalized.sourceFileName.isEmpty ? "파일 요약" : normalized.sourceFileName
         }
         return normalized

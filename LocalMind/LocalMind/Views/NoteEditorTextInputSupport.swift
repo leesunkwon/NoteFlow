@@ -1,6 +1,7 @@
 import UIKit
 import SwiftUI
 
+// SwiftUI TextEditor에서 부족한 선택 영역, 포커스, 키보드 동작을 UIKit으로 보완합니다.
 private final class WeakTextView {
     weak var value: UITextView?
 

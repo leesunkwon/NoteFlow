@@ -2,6 +2,7 @@ import AVFoundation
 import Combine
 import SwiftUI
 
+// 회의 요약에 사용할 음성을 녹음하고, 녹음 데이터를 상위 화면으로 전달합니다.
 struct VoiceRecordingView: View {
     let finish: (URL) -> Void
     let cancel: () -> Void
@@ -99,6 +100,7 @@ private final class VoiceRecorderController: NSObject, ObservableObject, AVAudio
     @Published var elapsedText = "00:00"
     @Published var errorMessage: String?
 
+    // AVAudioRecorder는 delegate 기반 객체라 컨트롤러가 생명주기를 직접 관리합니다.
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
     private var startDate: Date?
@@ -107,6 +109,7 @@ private final class VoiceRecorderController: NSObject, ObservableObject, AVAudio
     func startRecording() {
         errorMessage = nil
 
+        // iOS 마이크 권한 요청은 callback으로 돌아오므로 MainActor Task로 UI 상태를 갱신합니다.
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             Task { @MainActor [weak self] in
                 guard let self else {
@@ -114,6 +117,7 @@ private final class VoiceRecorderController: NSObject, ObservableObject, AVAudio
                 }
 
                 guard granted else {
+                    // 권한이 없으면 녹음 시작 대신 화면에 안내 문구를 보여줍니다.
                     self.errorMessage = "마이크 권한이 필요합니다."
                     return
                 }

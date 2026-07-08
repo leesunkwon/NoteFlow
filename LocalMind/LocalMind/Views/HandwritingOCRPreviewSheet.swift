@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 손글씨 인식 결과를 저장하기 전에 제목과 본문을 수정할 수 있게 보여줍니다.
 struct HandwritingOCRPreviewSheet: View {
     let result: HandwritingOCRResult
     let save: (HandwritingOCRResult) -> Void

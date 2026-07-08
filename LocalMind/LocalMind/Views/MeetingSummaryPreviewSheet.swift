@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 회의 요약 결과를 기록/요약 모드에 맞게 확인하고 저장하는 미리보기 시트입니다.
 struct MeetingSummaryPreviewSheet: View {
     let result: MeetingSummaryResult
     let save: (MeetingSummaryResult) -> Void
