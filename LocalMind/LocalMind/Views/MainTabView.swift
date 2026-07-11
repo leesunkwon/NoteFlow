@@ -37,6 +37,7 @@ struct MainTabView: View {
     @State private var favoritesPath: [NotesRoute] = []
     @State private var utilitiesPath: [NotesRoute] = []
     @State private var settingsPath: [NotesRoute] = []
+    @State private var selectedFolderID: UUID?
     @State private var persistenceError: String?
     @State private var showsTemplatePicker = false
     @State private var pendingTemplateToCreate: NoteTemplate?
@@ -44,7 +45,11 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             tabNavigationStack(path: $allNotesPath) {
-                NotesListView(source: .system(.all), path: $allNotesPath)
+                NotesListView(
+                    source: selectedNotesSource,
+                    path: $allNotesPath,
+                    selectedFolderID: $selectedFolderID
+                )
             }
             .tabItem {
                 Image(systemName: MainTab.allNotes.systemImage)
@@ -99,9 +104,17 @@ struct MainTabView: View {
             handleTabSelectionChange(from: oldValue, to: newValue)
         }
         .onAppear {
-            // 첫 진입 시 기본 폴더와 오래된 휴지통 정리 상태를 맞춥니다.
-            ensureDefaultFolder()
+            // 첫 진입 시 이전 기본 폴더 구조와 오래된 휴지통 상태를 정리합니다.
+            migrateLegacyFolderStructureIfNeeded()
             cleanupExpiredTrashIfNeeded()
+        }
+        .onChange(of: folders.map(\.id)) { _, folderIDs in
+            // 선택한 폴더가 다른 기기에서 삭제되면 안전하게 전체 목록으로 돌아갑니다.
+            if let selectedFolderID, !folderIDs.contains(selectedFolderID) {
+                self.selectedFolderID = nil
+            }
+            // CloudKit 폴더가 늦게 import되는 경우에도 레거시 기본 폴더 정리를 다시 시도합니다.
+            migrateLegacyFolderStructureIfNeeded()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active || phase == .background {
@@ -170,12 +183,28 @@ struct MainTabView: View {
         }
     }
 
-    private func ensureDefaultFolder() {
-        let defaultFolder = defaultFolder()
-        for note in notes where note.folder == nil {
-            note.folder = defaultFolder
+    private var sortedFolders: [Folder] {
+        folders.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private var selectedNotesSource: NotesListSource {
+        guard let selectedFolderID,
+              let folder = sortedFolders.first(where: { $0.id == selectedFolderID }) else {
+            return .system(.all)
         }
-        saveChanges()
+        return .folder(folder)
+    }
+
+    private func migrateLegacyFolderStructureIfNeeded() {
+        do {
+            try FolderStructureMigrationService.migrateIfNeeded(
+                folders: folders,
+                notes: notes,
+                modelContext: modelContext
+            )
+        } catch {
+            persistenceError = "\(error.localizedDescription)\n\n\(String(describing: error))"
+        }
     }
 
     private func cleanupExpiredTrashIfNeeded() {
@@ -196,23 +225,14 @@ struct MainTabView: View {
         }
     }
 
-    private func defaultFolder() -> Folder {
-        if let existing = folders.first(where: { $0.name == "메모" }) ?? folders.first {
-            return existing
-        }
-
-        let folder = Folder(name: "메모")
-        modelContext.insert(folder)
-        return folder
-    }
-
     private func createNote(template: NoteTemplate) {
         // 어느 탭에서 작성 버튼을 눌러도 새 메모는 전체 메모 탭에서 열리게 합니다.
         selectedTab = .allNotes
+        selectedFolderID = nil
         allNotesPath.removeAll()
 
         // 템플릿이 만든 초기 블록을 SwiftData에 먼저 넣고 NotePage와 연결합니다.
-        let note = NotePage(title: template.noteTitle, body: "", folder: defaultFolder())
+        let note = NotePage(title: template.noteTitle, body: "", folder: nil)
         modelContext.insert(note)
         let blocks = template.makeBlocks(for: note)
         for block in blocks {
@@ -240,7 +260,7 @@ struct MainTabView: View {
     }
 
     private func saveOCRResult(_ result: HandwritingOCRResult) {
-        let note = NotePage(title: result.title, body: "", folder: defaultFolder())
+        let note = NotePage(title: result.title, body: "", folder: nil)
         modelContext.insert(note)
 
         let blocks = makeBlocks(from: result, for: note)
@@ -257,7 +277,7 @@ struct MainTabView: View {
     }
 
     private func saveMeetingSummaryResult(_ result: MeetingSummaryResult) {
-        let note = NotePage(title: result.title, body: "", folder: defaultFolder())
+        let note = NotePage(title: result.title, body: "", folder: nil)
         note.summary = result.mode == .transcript ? "" : result.summary
         modelContext.insert(note)
 
@@ -275,7 +295,7 @@ struct MainTabView: View {
     }
 
     private func saveReceiptScanResult(_ result: ReceiptScanResult) {
-        let note = NotePage(title: result.title, body: "", folder: defaultFolder())
+        let note = NotePage(title: result.title, body: "", folder: nil)
         note.summary = [result.merchant, result.totalAmount, result.currency]
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: " ")
@@ -295,7 +315,7 @@ struct MainTabView: View {
     }
 
     private func saveBusinessCardScanResult(_ result: BusinessCardScanResult) {
-        let note = NotePage(title: result.title, body: "", folder: defaultFolder())
+        let note = NotePage(title: result.title, body: "", folder: nil)
         note.summary = [result.name, result.company, result.position]
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: " ")
@@ -315,7 +335,7 @@ struct MainTabView: View {
     }
 
     private func saveDocumentScanResult(_ result: DocumentScanResult) {
-        let note = NotePage(title: result.title, body: "", folder: defaultFolder())
+        let note = NotePage(title: result.title, body: "", folder: nil)
         note.summary = result.content
             .components(separatedBy: .newlines)
             .first?
@@ -336,7 +356,7 @@ struct MainTabView: View {
     }
 
     private func saveFileSummaryResult(_ result: FileSummaryResult) {
-        let note = NotePage(title: result.title, body: "", folder: defaultFolder())
+        let note = NotePage(title: result.title, body: "", folder: nil)
         note.summary = result.summary
         modelContext.insert(note)
 

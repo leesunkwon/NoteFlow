@@ -249,14 +249,6 @@ enum NoteFlowBackupService {
             folderMap[folder.id] = folder
         }
 
-        let defaultFolder = folderMap.values.first ?? {
-            // 백업에 폴더가 전혀 없을 때도 메모가 들어갈 기본 폴더를 보장합니다.
-            let folder = Folder(name: "메모")
-            modelContext.insert(folder)
-            folderMap[folder.id] = folder
-            return folder
-        }()
-
         for noteBackup in backup.notes {
             if tombstonedNoteIDs.contains(noteBackup.id) {
                 // 삭제 기록이 있는 메모는 가져오지 않아 다른 기기 삭제 상태를 유지합니다.
@@ -267,7 +259,8 @@ enum NoteFlowBackupService {
                 continue
             }
 
-            let note = noteBackup.makeNote(folder: noteBackup.folderID.flatMap { folderMap[$0] } ?? defaultFolder)
+            // 백업에 폴더가 없거나 연결 ID가 유효하지 않으면 미분류 메모로 복원합니다.
+            let note = noteBackup.makeNote(folder: noteBackup.folderID.flatMap { folderMap[$0] })
             modelContext.insert(note)
 
             let tasks = noteBackup.tasks.map { $0.makeTask(note: note) }
