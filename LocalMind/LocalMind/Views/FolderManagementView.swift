@@ -13,17 +13,20 @@ struct FolderManagementView: View {
     @State private var renamedFolderName = ""
     @State private var showsRenameFolder = false
     @State private var folderToDelete: Folder?
-    @State private var selectedDeleteDestinationFolderID: UUID?
     @State private var persistenceError: String?
 
     private var activeNotes: [NotePage] {
         notes.filter { $0.deletedAt == nil }
     }
 
+    private var sortedFolders: [Folder] {
+        folders.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
     var body: some View {
         List {
             Section {
-                ForEach(folders) { folder in
+                ForEach(sortedFolders) { folder in
                     NavigationLink(value: NotesRoute.folder(folder)) {
                         HStack(spacing: 12) {
                             Image(systemName: "folder")
@@ -76,7 +79,7 @@ struct FolderManagementView: View {
                     }
                 }
             } footer: {
-                Text("폴더를 삭제해도 메모는 지워지지 않고 기본 폴더로 이동합니다.")
+                Text("폴더를 삭제해도 메모는 지워지지 않고 전체 목록에 남습니다.")
             }
         }
         .navigationTitle("폴더 관리")
@@ -116,21 +119,25 @@ struct FolderManagementView: View {
         } message: {
             Text("새 폴더 이름을 입력하세요.")
         }
-        .sheet(item: $folderToDelete) { folder in
-            FolderDeleteSheet(
-                folder: folder,
-                noteCount: activeNotes.filter { $0.folder?.id == folder.id }.count,
-                destinationFolders: deleteDestinationFolders(excluding: folder),
-                selectedDestinationFolderID: $selectedDeleteDestinationFolderID,
-                cancel: {
+        .alert("폴더 삭제", isPresented: Binding(
+            get: { folderToDelete != nil },
+            set: { isPresented in
+                if !isPresented {
                     folderToDelete = nil
-                    selectedDeleteDestinationFolderID = nil
-                },
-                delete: {
-                    deleteFolder()
                 }
-            )
-            .presentationDetents([.medium])
+            }
+        )) {
+            Button("취소", role: .cancel) {
+                folderToDelete = nil
+            }
+            Button("삭제", role: .destructive) {
+                deleteFolder()
+            }
+        } message: {
+            if let folderToDelete {
+                let noteCount = activeNotes.filter { $0.folder?.id == folderToDelete.id }.count
+                Text("\(noteCount)개의 메모는 삭제되지 않고 전체 목록에 남습니다.")
+            }
         }
         .alert("저장 실패", isPresented: Binding(
             get: { persistenceError != nil },
@@ -151,7 +158,12 @@ struct FolderManagementView: View {
         guard !name.isEmpty else {
             return
         }
+        guard !folderNameExists(name) else {
+            persistenceError = "이미 같은 이름의 폴더가 있습니다."
+            return
+        }
 
+        FolderStructureMigrationService.markCompleted()
         modelContext.insert(Folder(name: name))
         newFolderName = ""
         saveChanges()
@@ -168,7 +180,7 @@ struct FolderManagementView: View {
         guard let folderToRename, !name.isEmpty else {
             return
         }
-        guard !folders.contains(where: { $0.id != folderToRename.id && $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
+        guard !folderNameExists(name, excluding: folderToRename.id) else {
             persistenceError = "이미 같은 이름의 폴더가 있습니다."
             return
         }
@@ -186,58 +198,35 @@ struct FolderManagementView: View {
         }
 
         folderToDelete = folder
-        selectedDeleteDestinationFolderID = deleteDestinationFolders(excluding: folder).first?.id
     }
 
     private func deleteFolder() {
         guard let folderToDelete, canDeleteFolder(folderToDelete) else {
             self.folderToDelete = nil
-            selectedDeleteDestinationFolderID = nil
             return
         }
 
-        let targetFolder = deleteDestinationFolders(excluding: folderToDelete)
-            .first { $0.id == selectedDeleteDestinationFolderID }
-            ?? defaultFolder(excluding: folderToDelete)
+        // 폴더 관계만 해제해 포함 메모가 전체 목록에서 계속 보이도록 합니다.
         for note in notes where note.folder?.id == folderToDelete.id {
-            note.folder = targetFolder
+            note.folder = nil
             note.touch()
         }
 
         modelContext.delete(folderToDelete)
         self.folderToDelete = nil
-        selectedDeleteDestinationFolderID = nil
         saveChanges()
     }
 
     private func canDeleteFolder(_ folder: Folder) -> Bool {
-        folder.id != protectedDefaultFolderID
+        _ = folder
+        return true
     }
 
-    private var protectedDefaultFolderID: UUID? {
-        folders.first(where: { $0.name == "메모" })?.id ?? folders.first?.id
-    }
-
-    private func defaultFolder(excluding deletedFolder: Folder) -> Folder {
-        if let existing = folders.first(where: { $0.id != deletedFolder.id && $0.name == "메모" }) {
-            return existing
+    private func folderNameExists(_ name: String, excluding folderID: UUID? = nil) -> Bool {
+        folders.contains { folder in
+            folder.id != folderID
+            && folder.name.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
         }
-
-        if let existing = folders.first(where: { $0.id != deletedFolder.id }) {
-            return existing
-        }
-
-        let folder = Folder(name: "메모")
-        modelContext.insert(folder)
-        return folder
-    }
-
-    private func deleteDestinationFolders(excluding deletedFolder: Folder) -> [Folder] {
-        let available = folders.filter { $0.id != deletedFolder.id }
-        if available.isEmpty {
-            return [defaultFolder(excluding: deletedFolder)]
-        }
-        return available
     }
 
     private func saveChanges() {
@@ -245,65 +234,6 @@ struct FolderManagementView: View {
             try modelContext.save()
         } catch {
             persistenceError = "\(error.localizedDescription)\n\n\(String(describing: error))"
-        }
-    }
-}
-
-private struct FolderDeleteSheet: View {
-    let folder: Folder
-    let noteCount: Int
-    let destinationFolders: [Folder]
-    @Binding var selectedDestinationFolderID: UUID?
-    let cancel: () -> Void
-    let delete: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(folder.name)
-                            .font(.headline)
-                            .foregroundStyle(NoteFlowDesign.ink)
-                        Text("\(noteCount)개의 메모를 다른 폴더로 이동한 뒤 폴더를 삭제합니다.")
-                            .font(.subheadline)
-                            .foregroundStyle(NoteFlowDesign.mute)
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section("이동 대상") {
-                    ForEach(destinationFolders) { destination in
-                        Button {
-                            selectedDestinationFolderID = destination.id
-                        } label: {
-                            HStack {
-                                Label(destination.name, systemImage: "folder")
-                                    .foregroundStyle(NoteFlowDesign.ink)
-                                Spacer()
-                                if selectedDestinationFolderID == destination.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(NoteFlowDesign.ink)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("폴더 삭제")
-            .navigationBarTitleDisplayMode(.inline)
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(NoteFlowDesign.canvas)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("취소", action: cancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("폴더 삭제", role: .destructive, action: delete)
-                        .disabled(selectedDestinationFolderID == nil)
-                }
-            }
         }
     }
 }

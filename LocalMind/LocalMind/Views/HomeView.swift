@@ -79,6 +79,10 @@ struct HomeView: View {
         notes.filter { $0.deletedAt == nil }
     }
 
+    private var sortedFolders: [Folder] {
+        folders.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             folderList
@@ -100,7 +104,6 @@ struct HomeView: View {
                 }
         }
         .tint(NoteFlowDesign.ink)
-        .onAppear(perform: ensureDefaultFolder)
         .alert("새 폴더", isPresented: $showsNewFolder) {
             TextField("이름", text: $newFolderName)
             Button("취소", role: .cancel) {
@@ -132,7 +135,7 @@ struct HomeView: View {
                 deleteFolder()
             }
         } message: {
-            Text("폴더 안의 메모는 삭제하지 않고 기본 폴더로 이동합니다.")
+            Text("폴더 안의 메모는 삭제하지 않고 미분류 상태로 변경합니다.")
         }
         .alert("저장 실패", isPresented: Binding(
             get: { persistenceError != nil },
@@ -168,7 +171,21 @@ struct HomeView: View {
             }
 
             Section("폴더") {
-                ForEach(folders) { folder in
+                NavigationLink(value: NotesRoute.systemFolder(.all)) {
+                    Label {
+                        HStack {
+                            Text("전체")
+                            Spacer()
+                            Text("\(activeNotes.count)")
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: SystemFolder.all.systemImage)
+                            .foregroundStyle(NoteFlowDesign.ink)
+                    }
+                }
+
+                ForEach(sortedFolders) { folder in
                     NavigationLink(value: NotesRoute.folder(folder)) {
                         Label {
                             HStack {
@@ -217,7 +234,7 @@ struct HomeView: View {
             }
 
             Section {
-                ForEach(SystemFolder.allCases) { folder in
+                ForEach(SystemFolder.allCases.filter { $0 != .all }) { folder in
                     NavigationLink(value: NotesRoute.systemFolder(folder)) {
                         Label {
                             HStack {
@@ -260,34 +277,18 @@ struct HomeView: View {
         }
     }
 
-    private func ensureDefaultFolder() {
-        // 폴더가 없는 기존 메모가 있다면 앱 기본 폴더에 묶어 목록 구조를 안정화합니다.
-        let defaultFolder = defaultFolder()
-        for note in notes where note.folder == nil {
-            note.folder = defaultFolder
-        }
-        saveChanges()
-    }
-
-    private func defaultFolder() -> Folder {
-        // “메모” 폴더가 있으면 우선 사용하고, 없으면 첫 폴더를 기본값으로 삼습니다.
-        if let existing = folders.first(where: { $0.name == "메모" }) ?? folders.first {
-            return existing
-        }
-
-        // 폴더가 하나도 없으면 즉시 기본 폴더를 만들어 새 메모가 고아 상태가 되지 않게 합니다.
-        let folder = Folder(name: "메모")
-        modelContext.insert(folder)
-        return folder
-    }
-
     private func createFolder() {
         // 사용자가 공백만 입력한 경우에는 빈 폴더를 만들지 않습니다.
         let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
             return
         }
+        guard !folderNameExists(name) else {
+            persistenceError = "이미 같은 이름의 폴더가 있습니다."
+            return
+        }
 
+        FolderStructureMigrationService.markCompleted()
         modelContext.insert(Folder(name: name))
         newFolderName = ""
         saveChanges()
@@ -302,6 +303,10 @@ struct HomeView: View {
     private func renameFolder() {
         let name = renamedFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let folderToRename, !name.isEmpty else {
+            return
+        }
+        guard !folderNameExists(name, excluding: folderToRename.id) else {
+            persistenceError = "이미 같은 이름의 폴더가 있습니다."
             return
         }
 
@@ -327,11 +332,9 @@ struct HomeView: View {
             return
         }
 
-        // 폴더 삭제 전에 포함된 메모를 다른 폴더로 옮겨 메모가 사라지지 않게 합니다.
-        let targetFolder = defaultFolder(excluding: folderToDelete)
-
+        // 폴더만 삭제하고 메모는 미분류 상태로 돌려 전체 목록에서 계속 보존합니다.
         for note in notes where note.folder?.id == folderToDelete.id {
-            note.folder = targetFolder
+            note.folder = nil
             note.touch()
         }
 
@@ -341,30 +344,20 @@ struct HomeView: View {
     }
 
     private func canDeleteFolder(_ folder: Folder) -> Bool {
-        folder.id != protectedDefaultFolderID
+        _ = folder
+        return true
     }
 
-    private var protectedDefaultFolderID: UUID? {
-        folders.first(where: { $0.name == "메모" })?.id ?? folders.first?.id
-    }
-
-    private func defaultFolder(excluding deletedFolder: Folder) -> Folder {
-        if let existing = folders.first(where: { $0.id != deletedFolder.id && $0.name == "메모" }) {
-            return existing
+    private func folderNameExists(_ name: String, excluding folderID: UUID? = nil) -> Bool {
+        folders.contains { folder in
+            folder.id != folderID
+            && folder.name.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
         }
-
-        if let existing = folders.first(where: { $0.id != deletedFolder.id }) {
-            return existing
-        }
-
-        let folder = Folder(name: "메모")
-        modelContext.insert(folder)
-        return folder
     }
 
     private func createNote(template: NoteTemplate) {
         // 템플릿은 제목과 초기 블록을 함께 만들기 때문에 NotePage 생성 직후 블록도 삽입합니다.
-        let note = NotePage(title: template.noteTitle, body: "", folder: defaultFolder())
+        let note = NotePage(title: template.noteTitle, body: "", folder: nil)
         modelContext.insert(note)
         let blocks = template.makeBlocks(for: note)
         for block in blocks {
@@ -433,6 +426,7 @@ struct NotesListView: View {
 
     let source: NotesListSource
     @Binding var path: [NotesRoute]
+    private let selectedFolderID: Binding<UUID?>?
     @State private var persistenceError: String?
     @State private var showsTemplatePicker = false
     @State private var pendingTemplateToCreate: NoteTemplate?
@@ -443,6 +437,16 @@ struct NotesListView: View {
     @State private var refreshStatusMessage: String?
     @Namespace private var searchNamespace
 
+    init(
+        source: NotesListSource,
+        path: Binding<[NotesRoute]>,
+        selectedFolderID: Binding<UUID?>? = nil
+    ) {
+        self.source = source
+        self._path = path
+        self.selectedFolderID = selectedFolderID
+    }
+
     private var visibleNotes: [NotePage] {
         let filtered = notes.filter { source.includes($0) }
         return noteSortOption.sorted(filtered)
@@ -451,6 +455,10 @@ struct NotesListView: View {
     private var noteSortOption: NoteSortOption {
         get { NoteSortOption(rawValue: noteSortOptionRaw) ?? .createdAt }
         nonmutating set { noteSortOptionRaw = newValue.rawValue }
+    }
+
+    private var sortedFolders: [Folder] {
+        folders.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     private var trashRetentionMessage: String {
@@ -518,7 +526,7 @@ struct NotesListView: View {
 
                 BottomTabBarListSpacer()
             }
-            .navigationTitle(source.title)
+            .navigationTitle(selectedFolderID == nil ? source.title : "")
             .listStyle(.plain)
             .refreshable {
                 await refreshCloudKitStatus()
@@ -542,21 +550,13 @@ struct NotesListView: View {
         .toolbar(showsSearch ? .hidden : .visible, for: .navigationBar)
         .toolbar(showsSearch ? .hidden : .visible, for: .tabBar)
         .toolbar {
-            if !source.isTrash {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        ForEach(folders) { folder in
-                            Button(folder.name) {
-                                moveVisibleNotes(to: folder)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "folder")
-                    }
-                    .disabled(visibleNotes.isEmpty)
-                    .accessibilityLabel("표시된 메모 폴더 이동")
+            if let selectedFolderID {
+                ToolbarItem(placement: .principal) {
+                    folderSelectionMenu(selection: selectedFolderID)
                 }
+            }
 
+            if !source.isTrash {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 14) {
                         Menu {
@@ -623,6 +623,46 @@ struct NotesListView: View {
         }
     }
 
+    private func folderSelectionMenu(selection: Binding<UUID?>) -> some View {
+        Menu {
+            Button {
+                selection.wrappedValue = nil
+            } label: {
+                if selection.wrappedValue == nil {
+                    Label("전체", systemImage: "checkmark")
+                } else {
+                    Text("전체")
+                }
+            }
+
+            if !sortedFolders.isEmpty {
+                Divider()
+            }
+
+            ForEach(sortedFolders) { folder in
+                Button {
+                    selection.wrappedValue = folder.id
+                } label: {
+                    if selection.wrappedValue == folder.id {
+                        Label(folder.name, systemImage: "checkmark")
+                    } else {
+                        Text(folder.name)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text(source.title)
+                    .font(.headline)
+                    .foregroundStyle(NoteFlowDesign.ink)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NoteFlowDesign.mute)
+            }
+        }
+        .accessibilityLabel("폴더 선택, 현재 \(source.title)")
+    }
+
     private func closeSearch() {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
             showsSearch = false
@@ -659,11 +699,8 @@ struct NotesListView: View {
     }
 
     private func createNote(template: NoteTemplate) {
-        let folder = source.defaultFolder(folders: folders) ?? folders.first ?? Folder(name: "메모")
-        if folder.modelContext == nil {
-            modelContext.insert(folder)
-        }
-        let note = NotePage(title: template.noteTitle, body: "", folder: folder)
+        // 사용자 폴더 화면에서 만든 메모만 해당 폴더에 연결하고 나머지는 미분류로 저장합니다.
+        let note = NotePage(title: template.noteTitle, body: "", folder: source.creationFolder)
         modelContext.insert(note)
         let blocks = template.makeBlocks(for: note)
         for block in blocks {
@@ -728,15 +765,6 @@ struct NotesListView: View {
             modelContext.delete(note)
         }
         notesPendingPermanentDelete = []
-        saveChanges()
-    }
-
-    private func moveVisibleNotes(to folder: Folder) {
-        for note in visibleNotes {
-            note.folder = folder
-            note.touch()
-        }
-        folder.touch()
         saveChanges()
     }
 
@@ -875,14 +903,12 @@ enum NotesListSource: Hashable {
         }
     }
 
-    func defaultFolder(folders: [Folder]) -> Folder? {
+    var creationFolder: Folder? {
         switch self {
         case .folder(let folder):
             return folder
-        case .system:
-            return folders.first(where: { $0.name == "메모" }) ?? folders.first
-        case .tag:
-            return folders.first(where: { $0.name == "메모" }) ?? folders.first
+        case .system, .tag:
+            return nil
         }
     }
 }
@@ -899,7 +925,7 @@ enum SystemFolder: String, CaseIterable, Identifiable, Hashable {
     var title: String {
         switch self {
         case .all:
-            return "모든 메모"
+            return "전체"
         case .favorites:
             return "즐겨찾기"
         case .tasks:
