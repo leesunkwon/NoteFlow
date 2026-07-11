@@ -24,12 +24,8 @@ struct UtilitiesView: View {
     @State private var isProcessingBusinessCard = false
     @State private var isProcessingDocumentScan = false
     @State private var isProcessingFileSummary = false
-    @State private var ocrError: String?
-    @State private var meetingError: String?
-    @State private var receiptError: String?
-    @State private var businessCardError: String?
-    @State private var documentScanError: String?
-    @State private var fileSummaryError: String?
+    @State private var processingFailure: UtilityProcessingFailure?
+    @State private var retryInput: GeminiRetryInput?
     @State private var ocrTask: Task<Void, Never>?
     @State private var meetingTask: Task<Void, Never>?
     @State private var receiptTask: Task<Void, Never>?
@@ -247,83 +243,37 @@ struct UtilitiesView: View {
                 }
             )
         }
-        .alert("손글씨 변환 실패", isPresented: Binding(
-            get: { ocrError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    ocrError = nil
-                }
+        .alert(item: $processingFailure) { failure in
+            if failure.canRetry {
+                return Alert(
+                    title: Text(failure.title),
+                    message: Text(failure.message),
+                    primaryButton: .default(Text("다시 시도")) {
+                        retryProcessing(failure.kind)
+                    },
+                    secondaryButton: .cancel(Text("닫기")) {
+                        clearRetryInput(for: failure.kind)
+                    }
+                )
             }
-        )) {
-            Button("확인", role: .cancel) { }
-        } message: {
-            Text(ocrError ?? "")
-        }
-        .alert("회의 요약 실패", isPresented: Binding(
-            get: { meetingError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    meetingError = nil
+
+            return Alert(
+                title: Text(failure.title),
+                message: Text(failure.message),
+                dismissButton: .cancel(Text("확인")) {
+                    clearRetryInput(for: failure.kind)
                 }
-            }
-        )) {
-            Button("확인", role: .cancel) { }
-        } message: {
-            Text(meetingError ?? "")
-        }
-        .alert("지출 스캔 실패", isPresented: Binding(
-            get: { receiptError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    receiptError = nil
-                }
-            }
-        )) {
-            Button("확인", role: .cancel) { }
-        } message: {
-            Text(receiptError ?? "")
-        }
-        .alert("연락처 스캔 실패", isPresented: Binding(
-            get: { businessCardError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    businessCardError = nil
-                }
-            }
-        )) {
-            Button("확인", role: .cancel) { }
-        } message: {
-            Text(businessCardError ?? "")
-        }
-        .alert("문서 스캔 실패", isPresented: Binding(
-            get: { documentScanError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    documentScanError = nil
-                }
-            }
-        )) {
-            Button("확인", role: .cancel) { }
-        } message: {
-            Text(documentScanError ?? "")
-        }
-        .alert("파일 요약 실패", isPresented: Binding(
-            get: { fileSummaryError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    fileSummaryError = nil
-                }
-            }
-        )) {
-            Button("확인", role: .cancel) { }
-        } message: {
-            Text(fileSummaryError ?? "")
+            )
         }
     }
 
     private func processImage(_ image: UIImage, kind: UtilityFeatureKind) {
         guard let imageData = image.normalizedJPEGData(maxDimension: 1800) else {
-            setImageProcessingError(for: kind, message: "이미지를 처리하지 못했습니다.")
+            presentFailure(
+                kind: kind,
+                message: "이미지를 처리하지 못했습니다.",
+                canRetry: false
+            )
             return
         }
 
@@ -350,7 +300,8 @@ struct UtilitiesView: View {
 
         // 같은 기능이 중복 실행되지 않도록 처리 상태와 taskID를 함께 세팅합니다.
         isProcessingOCR = true
-        ocrError = nil
+        processingFailure = nil
+        retryInput = .image(kind: .handwritingOCR, data: imageData)
         let taskID = UUID()
         ocrTaskID = taskID
         setProcessingStage(.preparingInput, for: .handwritingOCR)
@@ -372,6 +323,7 @@ struct UtilitiesView: View {
                     }
                     // 결과가 도착한 뒤에는 바로 저장하지 않고 미리보기 시트로 넘깁니다.
                     ocrPreview = result
+                    clearRetryInput(for: .handwritingOCR)
                     finishProcessing(.handwritingOCR)
                 }
             } catch {
@@ -384,8 +336,9 @@ struct UtilitiesView: View {
                         // 사용자가 취소한 작업은 실패 alert를 띄우지 않습니다.
                         return
                     }
-                    ocrError = GeminiServiceError.message(
-                        for: error,
+                    presentFailure(
+                        error,
+                        kind: .handwritingOCR,
                         fallback: "손글씨를 인식하지 못했습니다. 이미지를 다시 선택해 주세요."
                     )
                 }
@@ -399,7 +352,8 @@ struct UtilitiesView: View {
         }
 
         isProcessingReceipt = true
-        receiptError = nil
+        processingFailure = nil
+        retryInput = .image(kind: .receipt, data: imageData)
         let taskID = UUID()
         receiptTaskID = taskID
         setProcessingStage(.preparingInput, for: .receipt)
@@ -419,6 +373,7 @@ struct UtilitiesView: View {
                         return
                     }
                     receiptPreview = result
+                    clearRetryInput(for: .receipt)
                     finishProcessing(.receipt)
                 }
             } catch {
@@ -430,8 +385,9 @@ struct UtilitiesView: View {
                     guard !isCancellationError(error) else {
                         return
                     }
-                    receiptError = GeminiServiceError.message(
-                        for: error,
+                    presentFailure(
+                        error,
+                        kind: .receipt,
                         fallback: "영수증을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
                     )
                 }
@@ -445,7 +401,8 @@ struct UtilitiesView: View {
         }
 
         isProcessingBusinessCard = true
-        businessCardError = nil
+        processingFailure = nil
+        retryInput = .image(kind: .businessCard, data: imageData)
         let taskID = UUID()
         businessCardTaskID = taskID
         setProcessingStage(.preparingInput, for: .businessCard)
@@ -465,6 +422,7 @@ struct UtilitiesView: View {
                         return
                     }
                     businessCardPreview = result
+                    clearRetryInput(for: .businessCard)
                     finishProcessing(.businessCard)
                 }
             } catch {
@@ -476,8 +434,9 @@ struct UtilitiesView: View {
                     guard !isCancellationError(error) else {
                         return
                     }
-                    businessCardError = GeminiServiceError.message(
-                        for: error,
+                    presentFailure(
+                        error,
+                        kind: .businessCard,
                         fallback: "명함을 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
                     )
                 }
@@ -491,7 +450,8 @@ struct UtilitiesView: View {
         }
 
         isProcessingDocumentScan = true
-        documentScanError = nil
+        processingFailure = nil
+        retryInput = .image(kind: .documentScan, data: imageData)
         let taskID = UUID()
         documentScanTaskID = taskID
         setProcessingStage(.preparingInput, for: .documentScan)
@@ -511,6 +471,7 @@ struct UtilitiesView: View {
                         return
                     }
                     documentScanPreview = result
+                    clearRetryInput(for: .documentScan)
                     finishProcessing(.documentScan)
                 }
             } catch {
@@ -522,8 +483,9 @@ struct UtilitiesView: View {
                     guard !isCancellationError(error) else {
                         return
                     }
-                    documentScanError = GeminiServiceError.message(
-                        for: error,
+                    presentFailure(
+                        error,
+                        kind: .documentScan,
                         fallback: "문서를 분석하지 못했습니다. 이미지를 다시 선택해 주세요."
                     )
                 }
@@ -538,7 +500,8 @@ struct UtilitiesView: View {
 
         // 파일 요약은 security-scoped resource 접근과 파일 읽기를 Task 안에서 처리합니다.
         isProcessingFileSummary = true
-        fileSummaryError = nil
+        processingFailure = nil
+        clearRetryInput(for: .fileSummary)
         let taskID = UUID()
         fileSummaryTaskID = taskID
         setProcessingStage(.preparingInput, for: .fileSummary)
@@ -546,14 +509,14 @@ struct UtilitiesView: View {
         fileSummaryTask = Task {
             do {
                 let updateStage = stageUpdater(for: .fileSummary, taskID: taskID)
-                let didAccess = url.startAccessingSecurityScopedResource()
-                defer {
-                    if didAccess {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
                 let input: FileSummaryInput
                 do {
+                    let didAccess = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if didAccess {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
                     input = try FileSummaryInputReader.read(url: url)
                 } catch {
                     await MainActor.run {
@@ -564,19 +527,34 @@ struct UtilitiesView: View {
                         guard !isCancellationError(error) else {
                             return
                         }
-                        fileSummaryError = GeminiServiceError.message(
-                            for: error,
+                        presentFailure(
+                            error,
+                            kind: .fileSummary,
                             fallback: "파일을 읽을 수 없습니다. PDF, TXT, RTF, DOCX 파일을 선택해 주세요."
                         )
                     }
                     return
                 }
                 try Task.checkCancellation()
-                let result = try await GeminiFileSummaryService.summarize(
+
+                // 재시도에서는 원본 URL 대신 읽기가 끝난 최소 요청 데이터만 다시 사용합니다.
+                let requestInput = FileSummaryInput(
                     fileName: input.fileName,
                     mimeType: input.mimeType,
                     text: input.text,
-                    fileData: input.text.isEmpty ? input.data : nil,
+                    data: input.text.isEmpty ? input.data : nil
+                )
+                await MainActor.run {
+                    guard fileSummaryTaskID == taskID else {
+                        return
+                    }
+                    retryInput = .file(requestInput)
+                }
+                let result = try await GeminiFileSummaryService.summarize(
+                    fileName: requestInput.fileName,
+                    mimeType: requestInput.mimeType,
+                    text: requestInput.text,
+                    fileData: requestInput.data,
                     updateStage: updateStage
                 )
                 try Task.checkCancellation()
@@ -586,6 +564,7 @@ struct UtilitiesView: View {
                         return
                     }
                     fileSummaryPreview = result
+                    clearRetryInput(for: .fileSummary)
                     finishProcessing(.fileSummary)
                 }
             } catch {
@@ -597,8 +576,60 @@ struct UtilitiesView: View {
                     guard !isCancellationError(error) else {
                         return
                     }
-                    fileSummaryError = GeminiServiceError.message(
-                        for: error,
+                    presentFailure(
+                        error,
+                        kind: .fileSummary,
+                        fallback: "파일을 요약하지 못했습니다. 파일 형식이나 내용을 확인해 주세요."
+                    )
+                }
+            }
+        }
+    }
+
+    private func processFileInput(_ input: FileSummaryInput) {
+        guard !isProcessingFileSummary else {
+            return
+        }
+
+        isProcessingFileSummary = true
+        processingFailure = nil
+        retryInput = .file(input)
+        let taskID = UUID()
+        fileSummaryTaskID = taskID
+        setProcessingStage(.preparingInput, for: .fileSummary)
+
+        fileSummaryTask = Task {
+            do {
+                let updateStage = stageUpdater(for: .fileSummary, taskID: taskID)
+                let result = try await GeminiFileSummaryService.summarize(
+                    fileName: input.fileName,
+                    mimeType: input.mimeType,
+                    text: input.text,
+                    fileData: input.data,
+                    updateStage: updateStage
+                )
+                try Task.checkCancellation()
+                await updateStage(.preparingPreview)
+                await MainActor.run {
+                    guard fileSummaryTaskID == taskID else {
+                        return
+                    }
+                    fileSummaryPreview = result
+                    clearRetryInput(for: .fileSummary)
+                    finishProcessing(.fileSummary)
+                }
+            } catch {
+                await MainActor.run {
+                    guard fileSummaryTaskID == taskID else {
+                        return
+                    }
+                    finishProcessing(.fileSummary)
+                    guard !isCancellationError(error) else {
+                        return
+                    }
+                    presentFailure(
+                        error,
+                        kind: .fileSummary,
                         fallback: "파일을 요약하지 못했습니다. 파일 형식이나 내용을 확인해 주세요."
                     )
                 }
@@ -612,7 +643,8 @@ struct UtilitiesView: View {
         }
 
         isProcessingMeeting = true
-        meetingError = nil
+        processingFailure = nil
+        retryInput = .audio(data: data, mimeType: mimeType, mode: mode)
         let taskID = UUID()
         meetingTaskID = taskID
         setProcessingStage(.preparingInput, for: .meetingSummary)
@@ -633,6 +665,7 @@ struct UtilitiesView: View {
                         return
                     }
                     meetingPreview = result
+                    clearRetryInput(for: .meetingSummary)
                     finishProcessing(.meetingSummary)
                 }
             } catch {
@@ -644,8 +677,9 @@ struct UtilitiesView: View {
                     guard !isCancellationError(error) else {
                         return
                     }
-                    meetingError = GeminiServiceError.message(
-                        for: error,
+                    presentFailure(
+                        error,
+                        kind: .meetingSummary,
                         fallback: "회의 음성을 요약하지 못했습니다. 파일이나 녹음 상태를 확인해 주세요."
                     )
                 }
@@ -747,26 +781,71 @@ struct UtilitiesView: View {
         }
     }
 
-    private func setImageProcessingError(for kind: UtilityFeatureKind, message: String) {
-        switch kind {
-        case .receipt:
-            receiptError = message
-        case .businessCard:
-            businessCardError = message
-        case .handwritingOCR:
-            ocrError = message
-        case .meetingSummary:
-            break
-        case .documentScan:
-            documentScanError = message
-        case .fileSummary:
-            break
+    private func presentFailure(_ error: Error, kind: UtilityFeatureKind, fallback: String) {
+        let canRetry = (error as? GeminiServiceError)?.isRetryable == true
+            && retryInput?.kind == kind
+        presentFailure(
+            kind: kind,
+            message: GeminiServiceError.message(for: error, fallback: fallback),
+            canRetry: canRetry
+        )
+    }
+
+    private func presentFailure(kind: UtilityFeatureKind, message: String, canRetry: Bool) {
+        if !canRetry {
+            clearRetryInput(for: kind)
         }
+        processingFailure = UtilityProcessingFailure(
+            kind: kind,
+            message: message,
+            canRetry: canRetry
+        )
+    }
+
+    private func retryProcessing(_ kind: UtilityFeatureKind) {
+        guard let retryInput, retryInput.kind == kind else {
+            presentFailure(
+                kind: kind,
+                message: "재시도할 입력을 찾지 못했습니다. 입력을 다시 선택해 주세요.",
+                canRetry: false
+            )
+            return
+        }
+
+        processingFailure = nil
+        switch retryInput {
+        case .image(let imageKind, let data):
+            switch imageKind {
+            case .handwritingOCR:
+                processHandwritingImage(data)
+            case .receipt:
+                processReceiptImage(data)
+            case .businessCard:
+                processBusinessCardImage(data)
+            case .documentScan:
+                processDocumentImage(data)
+            case .meetingSummary, .fileSummary:
+                break
+            }
+        case .audio(let data, let mimeType, let mode):
+            processAudio(data, mimeType: mimeType, mode: mode)
+        case .file(let input):
+            processFileInput(input)
+        }
+    }
+
+    private func clearRetryInput(for kind: UtilityFeatureKind) {
+        guard retryInput?.kind == kind else {
+            return
+        }
+        retryInput = nil
     }
 
     private func cancelProcessing(_ kind: UtilityFeatureKind) {
         // Task.cancel()만으로는 UI가 바로 닫히지 않으므로 화면 상태도 함께 정리합니다.
         task(for: kind)?.cancel()
+        processingFailure = nil
+        clearRetryInput(for: kind)
         finishProcessing(kind)
     }
 
@@ -835,13 +914,58 @@ struct UtilitiesView: View {
     }
 }
 
-private enum UtilityFeatureKind {
+private struct UtilityProcessingFailure: Identifiable {
+    let id = UUID()
+    let kind: UtilityFeatureKind
+    let message: String
+    let canRetry: Bool
+
+    var title: String {
+        kind.failureTitle
+    }
+}
+
+private enum GeminiRetryInput {
+    case image(kind: UtilityFeatureKind, data: Data)
+    case audio(data: Data, mimeType: String, mode: MeetingSummaryMode)
+    case file(FileSummaryInput)
+
+    var kind: UtilityFeatureKind {
+        switch self {
+        case .image(let kind, _):
+            return kind
+        case .audio:
+            return .meetingSummary
+        case .file:
+            return .fileSummary
+        }
+    }
+}
+
+private enum UtilityFeatureKind: Equatable {
     case documentScan
     case fileSummary
     case receipt
     case businessCard
     case handwritingOCR
     case meetingSummary
+
+    var failureTitle: String {
+        switch self {
+        case .handwritingOCR:
+            return "손글씨 변환 실패"
+        case .meetingSummary:
+            return "회의 요약 실패"
+        case .fileSummary:
+            return "파일 요약 실패"
+        case .documentScan:
+            return "문서 스캔 실패"
+        case .receipt:
+            return "지출 스캔 실패"
+        case .businessCard:
+            return "연락처 스캔 실패"
+        }
+    }
 
     var preparingInputMessage: String {
         switch self {
