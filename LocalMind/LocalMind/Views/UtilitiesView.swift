@@ -119,32 +119,30 @@ struct UtilitiesView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
-                Label("Gemini 기반", systemImage: "sparkles")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NoteFlowDesign.mute)
-                    .accessibilityLabel("이 화면의 AI 도구는 Gemini를 사용합니다")
+        List {
+            UtilityIntelligenceHeader()
+                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
-                ForEach(featureSections) { section in
-                    UtilityFeatureSectionView(
-                        section: section,
-                        features: features.filter { $0.section == section },
-                        isProcessing: isProcessing,
-                        processImage: processImage,
-                        processAudio: processAudio,
-                        processFile: processFile
-                    )
-                }
-
-                Color.clear
-                    .frame(height: MainTabLayout.bottomContentInset + 48)
-                    .accessibilityHidden(true)
+            ForEach(featureSections) { section in
+                UtilityFeatureSectionView(
+                    section: section,
+                    features: features.filter { $0.section == section },
+                    showsProviderFooter: section == .organizeDocument,
+                    isProcessing: isProcessing,
+                    processImage: processImage,
+                    processAudio: processAudio,
+                    processFile: processFile
+                )
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 10)
+
+            BottomTabBarListSpacer(height: MainTabLayout.bottomContentInset + 24)
         }
-        .background(NoteFlowDesign.canvas.ignoresSafeArea())
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(18)
+        .scrollContentBackground(.hidden)
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("AI 도구")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $ocrPreview) { result in
@@ -919,9 +917,26 @@ private enum UtilityFeatureKind {
             return "Meeting intelligence"
         }
     }
+
+    var listAccentColor: Color {
+        switch self {
+        case .handwritingOCR:
+            return .cyan
+        case .meetingSummary:
+            return .orange
+        case .fileSummary:
+            return .blue
+        case .documentScan:
+            return .indigo
+        case .receipt:
+            return .green
+        case .businessCard:
+            return .pink
+        }
+    }
 }
 
-private enum UtilityFeatureSection: CaseIterable, Identifiable {
+private enum UtilityFeatureSection: CaseIterable, Identifiable, Equatable {
     case convertToNote
     case organizeDocument
 
@@ -955,44 +970,70 @@ private struct UtilityFeature: Identifiable {
     }
 }
 
+private struct UtilityIntelligenceHeader: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 22, weight: .semibold))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color.cyan, Color.indigo, Color.pink)
+                .frame(width: 44, height: 44)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("NoteFlow AI")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text("이미지 · 음성 · 파일")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("NoteFlow AI, 이미지, 음성, 파일 도구")
+    }
+}
+
 private struct UtilityFeatureSectionView: View {
     let section: UtilityFeatureSection
     let features: [UtilityFeature]
+    let showsProviderFooter: Bool
     let isProcessing: (UtilityFeature) -> Bool
     let processImage: (UIImage, UtilityFeatureKind) -> Void
     let processAudio: (Data, String, MeetingSummaryMode) -> Void
     let processFile: (URL) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(section.title)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(NoteFlowDesign.ink)
-                .padding(.horizontal, 2)
-
-            VStack(spacing: 0) {
-                ForEach(features) { feature in
-                    NavigationLink {
-                        UtilityFeatureDetailView(
-                            feature: feature,
-                            isProcessing: isProcessing(feature),
-                            processImage: processImage,
-                            processAudio: processAudio,
-                            processFile: processFile
-                        )
-                    } label: {
-                        UtilityFeatureRow(
-                            feature: feature,
-                            isProcessing: isProcessing(feature)
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    if feature.id != features.last?.id {
-                        Divider()
-                            .padding(.leading, 50)
-                    }
+        Section {
+            ForEach(features) { feature in
+                NavigationLink {
+                    UtilityFeatureDetailView(
+                        feature: feature,
+                        isProcessing: isProcessing(feature),
+                        processImage: processImage,
+                        processAudio: processAudio,
+                        processFile: processFile
+                    )
+                } label: {
+                    UtilityFeatureRow(
+                        feature: feature,
+                        isProcessing: isProcessing(feature)
+                    )
                 }
+            }
+        } header: {
+            Text(section.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(nil)
+        } footer: {
+            if showsProviderFooter {
+                Text("AI 처리는 Gemini를 사용합니다.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -1008,19 +1049,22 @@ private struct UtilityFeatureRow: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: feature.systemImage)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(NoteFlowDesign.ink)
+                .foregroundStyle(feature.kind.listAccentColor)
                 .frame(width: 36, height: 36)
-                .background(NoteFlowDesign.softCloud, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(
+                    feature.kind.listAccentColor.opacity(0.14),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
 
             VStack(alignment: .leading, spacing: 4) {
                 if dynamicTypeSize.isAccessibilitySize {
                     Text(feature.title)
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(NoteFlowDesign.ink)
+                        .foregroundStyle(.primary)
 
                     Text(feature.listSubtitle)
                         .font(.subheadline)
-                        .foregroundStyle(NoteFlowDesign.mute)
+                        .foregroundStyle(.secondary)
                         .lineLimit(2)
 
                     metadata
@@ -1029,7 +1073,7 @@ private struct UtilityFeatureRow: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(feature.title)
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(NoteFlowDesign.ink)
+                            .foregroundStyle(.primary)
                             .lineLimit(1)
 
                         Spacer(minLength: 8)
@@ -1039,19 +1083,13 @@ private struct UtilityFeatureRow: View {
 
                     Text(feature.listSubtitle)
                         .font(.subheadline)
-                        .foregroundStyle(NoteFlowDesign.mute)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
-
-            Spacer(minLength: 4)
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(NoteFlowDesign.mute)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 2)
-        .padding(.vertical, 12)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .opacity(feature.isAvailable ? 1 : 0.7)
@@ -1068,11 +1106,11 @@ private struct UtilityFeatureRow: View {
                 Text("처리 중")
             }
             .font(.caption.weight(.semibold))
-            .foregroundStyle(NoteFlowDesign.ink)
+            .foregroundStyle(feature.kind.listAccentColor)
         } else {
             Label(feature.inputLabel, systemImage: inputSystemImage)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(NoteFlowDesign.mute)
+                .foregroundStyle(.secondary)
         }
     }
 
