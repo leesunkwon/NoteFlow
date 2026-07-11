@@ -12,6 +12,23 @@ enum GeminiServiceError: LocalizedError {
     case emptyFile
     case unsupportedFile
 
+    var isRetryable: Bool {
+        // 사용자가 다시 시도해서 회복될 가능성이 있는 일시적 오류만 재시도 대상으로 분류합니다.
+        switch self {
+        case .network(let code):
+            return code != .cancelled
+        case .requestFailed(let statusCode):
+            return statusCode == -1
+                || statusCode == 408
+                || statusCode == 429
+                || (500...599).contains(statusCode)
+        case .emptyResponse, .invalidJSON:
+            return true
+        case .missingAPIKey, .invalidURL, .emptyFile, .unsupportedFile:
+            return false
+        }
+    }
+
     var errorDescription: String? {
         // LocalizedError를 채택하면 alert에서 errorDescription을 바로 사용할 수 있습니다.
         switch self {

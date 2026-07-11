@@ -565,6 +565,7 @@ struct NotesListView: View {
                 NoteSearchView(
                     source: source,
                     notes: notes,
+                    folders: sortedFolders,
                     namespace: searchNamespace,
                     path: $path,
                     dismiss: closeSearch
@@ -1289,17 +1290,25 @@ private struct SearchEntryPill: View {
 private struct NoteSearchView: View {
     let source: NotesListSource
     let notes: [NotePage]
+    let folders: [Folder]
     let namespace: Namespace.ID
     @Binding var path: [NotesRoute]
     let dismiss: () -> Void
 
     @AppStorage("noteSortOption") private var noteSortOptionRaw = NoteSortOption.createdAt.rawValue
     @State private var query = ""
+    @State private var debouncedQuery = ""
+    @State private var filters = NoteSearchFilterState()
+    @State private var showsFilterSheet = false
     @State private var contentVisible = false
     @FocusState private var isSearchFocused: Bool
 
     private var trimmedQuery: String {
-        query.trimmingCharacters(in: .whitespacesAndNewlines)
+        debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasSearchCriteria: Bool {
+        !trimmedQuery.isEmpty || filters.hasResultConstraints
     }
 
     private var noteSortOption: NoteSortOption {
@@ -1307,17 +1316,20 @@ private struct NoteSearchView: View {
     }
 
     private var results: [NotePage] {
-        let sourceNotes = notes.filter { source.includes($0) && !$0.isLocked }
-        guard !trimmedQuery.isEmpty else {
+        guard hasSearchCriteria else {
             return []
         }
 
-        let filtered = sourceNotes.filter { note in
-            note.title.localizedCaseInsensitiveContains(trimmedQuery)
-            || note.displayTitle.localizedCaseInsensitiveContains(trimmedQuery)
-            || note.body.localizedCaseInsensitiveContains(trimmedQuery)
-            || note.summary.localizedCaseInsensitiveContains(trimmedQuery)
-            || note.tags.contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
+        let filtered = notes.filter { note in
+            guard source.includes(note), !note.isLocked else {
+                return false
+            }
+            guard folderFilterIncludes(note),
+                  !filters.favoritesOnly || note.isFavorite,
+                  filters.updatedRange.includes(note.updatedAt) else {
+                return false
+            }
+            return trimmedQuery.isEmpty || searchScopeIncludes(note)
         }
 
         return noteSortOption.sorted(filtered)
@@ -1340,6 +1352,24 @@ private struct NoteSearchView: View {
                 .offset(y: contentVisible ? 0 : 10)
         }
         .background(NoteFlowDesign.canvas.ignoresSafeArea())
+        .sheet(isPresented: $showsFilterSheet) {
+            NoteSearchFilterSheet(
+                filters: $filters,
+                folders: folders,
+                source: source
+            )
+            .presentationDetents([.medium, .large])
+        }
+        .task(id: query) {
+            await updateDebouncedQuery()
+        }
+        .onChange(of: folders.map(\.id)) { _, folderIDs in
+            guard case .folder(let selectedID) = filters.folder,
+                  !folderIDs.contains(selectedID) else {
+                return
+            }
+            filters.folder = .all
+        }
         .onAppear {
             withAnimation(.easeOut(duration: 0.18).delay(0.08)) {
                 contentVisible = true
@@ -1386,6 +1416,8 @@ private struct NoteSearchView: View {
                     .stroke(isSearchFocused ? NoteFlowDesign.ink : NoteFlowDesign.hairlineSoft, lineWidth: 1)
             }
 
+            filterButton
+
             Button {
                 dismiss()
             } label: {
@@ -1400,22 +1432,67 @@ private struct NoteSearchView: View {
         }
     }
 
+    private var filterButton: some View {
+        Button {
+            isSearchFocused = false
+            showsFilterSheet = true
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(NoteFlowDesign.ink)
+                .frame(width: 44, height: 44)
+                .background(NoteFlowDesign.softCloud, in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    if filters.activeCount > 0 {
+                        Text("\(filters.activeCount)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(NoteFlowDesign.ink, in: Circle())
+                            .offset(x: 3, y: -3)
+                            .accessibilityHidden(true)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("검색 필터")
+        .accessibilityValue(
+            filters.activeCount == 0
+                ? "적용된 필터 없음"
+                : "\(filters.activeCount)개 적용됨"
+        )
+    }
+
     @ViewBuilder
     private var content: some View {
-        if trimmedQuery.isEmpty {
+        if !hasSearchCriteria {
             ContentUnavailableView(
-                "검색어를 입력하세요",
+                "검색어나 조건을 입력하세요",
                 systemImage: "magnifyingglass",
-                description: Text("제목, 본문, 요약, 태그를 검색합니다. 잠긴 메모는 검색에서 제외됩니다.")
+                description: Text("검색 범위, 폴더, 즐겨찾기, 수정 날짜를 함께 설정할 수 있습니다. 잠긴 메모는 제외됩니다.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if results.isEmpty {
-            ContentUnavailableView(
-                "검색 결과 없음",
-                systemImage: "magnifyingglass",
-                description: Text("다른 검색어를 입력해보세요.")
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if filters.hasResultConstraints {
+                ContentUnavailableView {
+                    Label("조건에 맞는 메모 없음", systemImage: "line.3.horizontal.decrease.circle")
+                } description: {
+                    Text("검색어나 필터 조건을 변경해보세요.")
+                } actions: {
+                    Button("필터 초기화") {
+                        filters.reset()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ContentUnavailableView(
+                    "검색 결과 없음",
+                    systemImage: "magnifyingglass",
+                    description: Text("다른 검색어나 검색 범위를 사용해보세요.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         } else {
             List {
                 Section {
@@ -1446,18 +1523,100 @@ private struct NoteSearchView: View {
         }
     }
 
+    private func updateDebouncedQuery() async {
+        let latestQuery = query
+        if latestQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            debouncedQuery = latestQuery
+            return
+        }
+
+        do {
+            try await Task.sleep(for: .milliseconds(200))
+            try Task.checkCancellation()
+        } catch {
+            return
+        }
+
+        guard query == latestQuery else {
+            return
+        }
+        debouncedQuery = latestQuery
+    }
+
+    private func folderFilterIncludes(_ note: NotePage) -> Bool {
+        switch filters.folder {
+        case .all:
+            return true
+        case .unclassified:
+            return note.folder == nil
+        case .folder(let folderID):
+            return note.folder?.id == folderID
+        }
+    }
+
+    private func searchScopeIncludes(_ note: NotePage) -> Bool {
+        switch filters.scope {
+        case .all:
+            return titleMatches(note)
+                || contentMatches(note)
+                || tagsMatch(note)
+        case .title:
+            return titleMatches(note)
+        case .content:
+            return contentMatches(note)
+        case .tags:
+            return tagsMatch(note)
+        }
+    }
+
+    private func titleMatches(_ note: NotePage) -> Bool {
+        note.title.localizedCaseInsensitiveContains(trimmedQuery)
+            || note.displayTitle.localizedCaseInsensitiveContains(trimmedQuery)
+    }
+
+    private func contentMatches(_ note: NotePage) -> Bool {
+        note.body.localizedCaseInsensitiveContains(trimmedQuery)
+            || note.summary.localizedCaseInsensitiveContains(trimmedQuery)
+    }
+
+    private func tagsMatch(_ note: NotePage) -> Bool {
+        note.tags.contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
+    }
+
     private func searchMatch(for note: NotePage) -> SearchMatch? {
         guard !trimmedQuery.isEmpty else {
             return nil
         }
 
-        if note.title.localizedCaseInsensitiveContains(trimmedQuery)
-            || note.displayTitle.localizedCaseInsensitiveContains(trimmedQuery) {
-            return SearchMatch(kind: .title, text: note.displayTitle)
+        switch filters.scope {
+        case .all:
+            return titleMatchContext(for: note)
+                ?? tagMatchContext(for: note)
+                ?? contentMatchContext(for: note)
+        case .title:
+            return titleMatchContext(for: note)
+        case .content:
+            return contentMatchContext(for: note)
+        case .tags:
+            return tagMatchContext(for: note)
         }
-        if let tag = note.tags.first(where: { $0.localizedCaseInsensitiveContains(trimmedQuery) }) {
-            return SearchMatch(kind: .tag, text: "#\(tag)")
+    }
+
+    private func titleMatchContext(for note: NotePage) -> SearchMatch? {
+        guard titleMatches(note) else {
+            return nil
         }
+        return SearchMatch(kind: .title, text: note.displayTitle)
+    }
+
+    private func tagMatchContext(for note: NotePage) -> SearchMatch? {
+        guard let tag = note.tags.first(where: { $0.localizedCaseInsensitiveContains(trimmedQuery) }) else {
+            return nil
+        }
+        return SearchMatch(kind: .tag, text: "#\(tag)")
+    }
+
+    private func contentMatchContext(for note: NotePage) -> SearchMatch? {
         if let summary = snippet(in: note.summary) {
             return SearchMatch(kind: .summary, text: summary)
         }
