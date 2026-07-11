@@ -489,11 +489,34 @@ struct ChecklistRow: View {
 struct NoteInfoView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var note: NotePage
+    let isReadOnly: Bool
     @State private var saveError: String?
+    @State private var showsFolderPicker = false
 
     var body: some View {
         NavigationStack {
             List {
+                Section("폴더") {
+                    if isReadOnly {
+                        Label(currentFolderTitle, systemImage: note.folder == nil ? "tray" : "folder")
+                            .foregroundStyle(NoteFlowDesign.mute)
+                    } else {
+                        Button {
+                            showsFolderPicker = true
+                        } label: {
+                            HStack {
+                                Label(currentFolderTitle, systemImage: note.folder == nil ? "tray" : "folder")
+                                    .foregroundStyle(NoteFlowDesign.ink)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(NoteFlowDesign.mute)
+                            }
+                        }
+                        .accessibilityLabel("현재 폴더 \(currentFolderTitle), 폴더 변경")
+                    }
+                }
+
                 Section("요약") {
                     Text(note.summary.isEmpty ? "AI 요약 없음" : note.summary)
                         .foregroundStyle(note.summary.isEmpty ? .secondary : .primary)
@@ -550,6 +573,38 @@ struct NoteInfoView: View {
             }
         }
         .tint(NoteFlowDesign.ink)
+        .sheet(isPresented: $showsFolderPicker) {
+            NoteFolderPickerView(
+                currentDestination: currentDestination,
+                select: moveNote,
+                cancel: {
+                    showsFolderPicker = false
+                }
+            )
+            .presentationDetents([.medium, .large])
+        }
+    }
+
+    private var currentFolderTitle: String {
+        note.folder?.name ?? "미분류"
+    }
+
+    private var currentDestination: NoteFolderDestination {
+        note.folder.map { .folder($0.id) } ?? .unclassified
+    }
+
+    private func moveNote(to destination: NoteFolderDestination) {
+        do {
+            _ = try NoteFolderAssignmentService.move(
+                notes: [note],
+                to: destination,
+                modelContext: modelContext
+            )
+            showsFolderPicker = false
+            NoteFlowHaptics.success()
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 
     private func saveChanges() {
