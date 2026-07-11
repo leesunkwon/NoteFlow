@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		9F0F904A2FD78EA000E8CBA6 /* NoteFlow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NoteFlow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F0F90592FD78EA000E8CBA6 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		9F0F905A2FD78EA000E8CBA6 /* Secrets.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.example; sourceTree = "<group>"; };
-		9F0F904A2FD78EA000E8CBA6 /* NoteFlow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NoteFlow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -53,6 +53,14 @@
 			);
 			sourceTree = "<group>";
 		};
+		9F0F904B2FD78EA000E8CBA6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9F0F904A2FD78EA000E8CBA6 /* NoteFlow.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		9F0F905B2FD78EA000E8CBA6 /* Config */ = {
 			isa = PBXGroup;
 			children = (
@@ -60,14 +68,6 @@
 				9F0F905A2FD78EA000E8CBA6 /* Secrets.xcconfig.example */,
 			);
 			path = Config;
-			sourceTree = "<group>";
-		};
-		9F0F904B2FD78EA000E8CBA6 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				9F0F904A2FD78EA000E8CBA6 /* NoteFlow.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
