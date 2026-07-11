@@ -435,6 +435,11 @@ struct NotesListView: View {
     @State private var notesPendingPermanentDelete: [NotePage] = []
     @State private var showsPermanentDeleteConfirmation = false
     @State private var refreshStatusMessage: String?
+    @State private var editMode: EditMode = .inactive
+    @State private var selectedNoteIDs = Set<UUID>()
+    @State private var pendingFolderMoveNoteIDs = Set<UUID>()
+    @State private var showsFolderMovePicker = false
+    @State private var isAuthenticatingFolderMove = false
     @Namespace private var searchNamespace
 
     init(
@@ -461,6 +466,23 @@ struct NotesListView: View {
         folders.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    private var isSelectingNotes: Bool {
+        editMode.isEditing
+    }
+
+    private var pendingFolderMoveNotes: [NotePage] {
+        notes.filter { pendingFolderMoveNoteIDs.contains($0.id) && $0.deletedAt == nil }
+    }
+
+    private var pendingCurrentDestination: NoteFolderDestination? {
+        let currentFolderIDs = Set(pendingFolderMoveNotes.map { $0.folder?.id })
+        guard currentFolderIDs.count == 1,
+              let currentFolderID = currentFolderIDs.first else {
+            return nil
+        }
+        return currentFolderID.map(NoteFolderDestination.folder) ?? .unclassified
+    }
+
     private var trashRetentionMessage: String {
         autoCleanupTrashAfter30Days
             ? "최근 삭제된 항목은 30일 후 자동으로 영구 삭제됩니다."
@@ -469,7 +491,7 @@ struct NotesListView: View {
 
     var body: some View {
         ZStack {
-            List {
+            List(selection: $selectedNoteIDs) {
                 if let refreshStatusMessage {
                     refreshStatusRow(refreshStatusMessage)
                 }
@@ -480,6 +502,7 @@ struct NotesListView: View {
                             showsSearch = true
                         }
                     }
+                        .disabled(isSelectingNotes)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 10, leading: 18, bottom: 6, trailing: 18))
@@ -511,14 +534,17 @@ struct NotesListView: View {
                                     }
                                 }
                         } else {
-                            lockedAwareRow(for: note, readOnly: false)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    moveToTrash(note)
-                                } label: {
-                                    Label("삭제", systemImage: "trash")
+                            movableRow(for: note)
+                                .tag(note.id)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    if !isSelectingNotes {
+                                        Button(role: .destructive) {
+                                            moveToTrash(note)
+                                        } label: {
+                                            Label("삭제", systemImage: "trash")
+                                        }
+                                    }
                                 }
-                            }
                         }
                     }
                     .onDelete(perform: deleteNotes)
@@ -533,6 +559,7 @@ struct NotesListView: View {
             }
             .scrollContentBackground(.hidden)
             .background(NoteFlowDesign.canvas)
+            .environment(\.editMode, $editMode)
 
             if showsSearch {
                 NoteSearchView(
@@ -547,41 +574,69 @@ struct NotesListView: View {
             }
         }
         .animation(.spring(response: 0.34, dampingFraction: 0.9), value: showsSearch)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if isSelectingNotes {
+                selectionActionBar
+            }
+        }
         .toolbar(showsSearch ? .hidden : .visible, for: .navigationBar)
         .toolbar(showsSearch ? .hidden : .visible, for: .tabBar)
         .toolbar {
-            if let selectedFolderID {
-                ToolbarItem(placement: .principal) {
-                    folderSelectionMenu(selection: selectedFolderID)
+            if isSelectingNotes {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("취소", action: endNoteSelection)
                 }
-            }
-
-            if !source.isTrash {
+                ToolbarItem(placement: .principal) {
+                    Text("\(selectedNoteIDs.count)개 선택")
+                        .font(.headline)
+                        .accessibilityLabel("\(selectedNoteIDs.count)개 메모 선택됨")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 14) {
-                        Menu {
-                            ForEach(NoteSortOption.allCases) { option in
-                                Button {
-                                    noteSortOption = option
-                                } label: {
-                                    if noteSortOption == option {
-                                        Label(option.title, systemImage: "checkmark")
-                                    } else {
-                                        Text(option.title)
+                    Button("완료", action: endNoteSelection)
+                }
+            } else {
+                if let selectedFolderID {
+                    ToolbarItem(placement: .principal) {
+                        folderSelectionMenu(selection: selectedFolderID)
+                    }
+                }
+
+                if !source.isTrash {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        HStack(spacing: 14) {
+                            if isAuthenticatingFolderMove {
+                                ProgressView()
+                            } else if !visibleNotes.isEmpty {
+                                Button(action: beginNoteSelection) {
+                                    Image(systemName: "checkmark.circle")
+                                }
+                                .accessibilityLabel("메모 선택")
+                            }
+
+                            Menu {
+                                ForEach(NoteSortOption.allCases) { option in
+                                    Button {
+                                        noteSortOption = option
+                                    } label: {
+                                        if noteSortOption == option {
+                                            Label(option.title, systemImage: "checkmark")
+                                        } else {
+                                            Text(option.title)
+                                        }
                                     }
                                 }
+                            } label: {
+                                Image(systemName: "arrow.up.arrow.down")
                             }
-                        } label: {
-                            Image(systemName: "arrow.up.arrow.down")
-                        }
-                        .accessibilityLabel("메모 정렬")
+                            .accessibilityLabel("메모 정렬")
 
-                        Button {
-                            showsTemplatePicker = true
-                        } label: {
-                            Image(systemName: "square.and.pencil")
+                            Button {
+                                showsTemplatePicker = true
+                            } label: {
+                                Image(systemName: "square.and.pencil")
+                            }
+                            .accessibilityLabel("새 메모")
                         }
-                        .accessibilityLabel("새 메모")
                     }
                 }
             }
@@ -621,6 +676,48 @@ struct NotesListView: View {
             )
             .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showsFolderMovePicker, onDismiss: clearPendingFolderMoveIfNeeded) {
+            NoteFolderPickerView(
+                currentDestination: pendingCurrentDestination,
+                select: applyPendingFolderMove,
+                cancel: cancelPendingFolderMove
+            )
+            .presentationDetents([.medium, .large])
+        }
+        .onChange(of: source) { _, _ in
+            endNoteSelection()
+            cancelPendingFolderMove()
+        }
+        .onChange(of: visibleNotes.map(\.id)) { _, visibleNoteIDs in
+            selectedNoteIDs.formIntersection(visibleNoteIDs)
+        }
+    }
+
+    private var selectionActionBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            Button {
+                requestFolderMove(for: selectedNoteIDs)
+            } label: {
+                HStack(spacing: 8) {
+                    if isAuthenticatingFolderMove {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "folder")
+                    }
+                    Text("폴더 이동")
+                        .font(.body.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedNoteIDs.isEmpty || isAuthenticatingFolderMove)
+            .accessibilityLabel("선택한 \(selectedNoteIDs.count)개 메모 폴더 이동")
+            .padding(.horizontal, 18)
+            .padding(.vertical, 8)
+        }
+        .background(NoteFlowDesign.canvas)
     }
 
     private func folderSelectionMenu(selection: Binding<UUID?>) -> some View {
@@ -666,6 +763,106 @@ struct NotesListView: View {
     private func closeSearch() {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
             showsSearch = false
+        }
+    }
+
+    private func beginNoteSelection() {
+        selectedNoteIDs.removeAll()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            editMode = .active
+        }
+    }
+
+    private func endNoteSelection() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            editMode = .inactive
+        }
+        selectedNoteIDs.removeAll()
+    }
+
+    @ViewBuilder
+    private func movableRow(for note: NotePage) -> some View {
+        if isSelectingNotes {
+            NoteRow(note: note)
+        } else {
+            lockedAwareRow(for: note, readOnly: false)
+                .contextMenu {
+                    Button {
+                        requestFolderMove(for: [note.id])
+                    } label: {
+                        Label("폴더 이동", systemImage: "folder")
+                    }
+                }
+        }
+    }
+
+    @MainActor
+    private func requestFolderMove(for noteIDs: Set<UUID>) {
+        let movableNotes = notes.filter { noteIDs.contains($0.id) && $0.deletedAt == nil }
+        guard !movableNotes.isEmpty else {
+            return
+        }
+
+        let presentPicker = {
+            pendingFolderMoveNoteIDs = Set(movableNotes.map(\.id))
+            showsFolderMovePicker = true
+        }
+
+        guard movableNotes.contains(where: \.isLocked) else {
+            presentPicker()
+            return
+        }
+
+        isAuthenticatingFolderMove = true
+        Task { @MainActor in
+            let success = await NoteLockAuthenticator.authenticate(
+                reason: "잠긴 메모의 폴더를 변경하려면 인증이 필요합니다."
+            )
+            isAuthenticatingFolderMove = false
+            if success {
+                presentPicker()
+            }
+        }
+    }
+
+    @MainActor
+    private func applyPendingFolderMove(to destination: NoteFolderDestination) {
+        let movableNotes = pendingFolderMoveNotes
+        guard !movableNotes.isEmpty else {
+            showsFolderMovePicker = false
+            pendingFolderMoveNoteIDs.removeAll()
+            persistenceError = "이동할 메모를 찾을 수 없습니다. 목록을 확인한 뒤 다시 시도해 주세요."
+            return
+        }
+
+        do {
+            _ = try NoteFolderAssignmentService.move(
+                notes: movableNotes,
+                to: destination,
+                modelContext: modelContext
+            )
+            showsFolderMovePicker = false
+            pendingFolderMoveNoteIDs.removeAll()
+            if isSelectingNotes {
+                endNoteSelection()
+            }
+            NoteFlowHaptics.success()
+        } catch {
+            showsFolderMovePicker = false
+            pendingFolderMoveNoteIDs.removeAll()
+            persistenceError = error.localizedDescription
+            NoteFlowHaptics.error()
+        }
+    }
+
+    private func cancelPendingFolderMove() {
+        showsFolderMovePicker = false
+        pendingFolderMoveNoteIDs.removeAll()
+    }
+
+    private func clearPendingFolderMoveIfNeeded() {
+        if !showsFolderMovePicker {
+            pendingFolderMoveNoteIDs.removeAll()
         }
     }
 

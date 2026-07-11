@@ -328,7 +328,7 @@ struct NoteEditorView: View {
             }
         }
         .sheet(isPresented: $showsInfo) {
-            NoteInfoView(note: note)
+            NoteInfoView(note: note, isReadOnly: isReadOnly)
                 .presentationDetents([.medium, .large])
         }
         .alert("영구 삭제", isPresented: $showsPermanentDeleteConfirmation) {
