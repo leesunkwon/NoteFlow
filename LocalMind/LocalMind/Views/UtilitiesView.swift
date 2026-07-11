@@ -120,11 +120,6 @@ struct UtilitiesView: View {
 
     var body: some View {
         List {
-            UtilityIntelligenceHeader()
-                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-
             ForEach(featureSections) { section in
                 UtilityFeatureSectionView(
                     section: section,
@@ -140,7 +135,6 @@ struct UtilitiesView: View {
             BottomTabBarListSpacer(height: MainTabLayout.bottomContentInset + 24)
         }
         .listStyle(.insetGrouped)
-        .listSectionSpacing(18)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("AI 도구")
@@ -970,33 +964,6 @@ private struct UtilityFeature: Identifiable {
     }
 }
 
-private struct UtilityIntelligenceHeader: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 22, weight: .semibold))
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(Color.cyan, Color.indigo, Color.pink)
-                .frame(width: 44, height: 44)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("NoteFlow AI")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text("이미지 · 음성 · 파일")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("NoteFlow AI, 이미지, 음성, 파일 도구")
-    }
-}
-
 private struct UtilityFeatureSectionView: View {
     let section: UtilityFeatureSection
     let features: [UtilityFeature]
@@ -1026,8 +993,6 @@ private struct UtilityFeatureSectionView: View {
             }
         } header: {
             Text(section.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
                 .textCase(nil)
         } footer: {
             if showsProviderFooter {
@@ -1046,55 +1011,43 @@ private struct UtilityFeatureRow: View {
     let isProcessing: Bool
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 11) {
             Image(systemName: feature.systemImage)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(feature.kind.listAccentColor)
-                .frame(width: 36, height: 36)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
                 .background(
-                    feature.kind.listAccentColor.opacity(0.14),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    feature.kind.listAccentColor,
+                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                 )
 
-            VStack(alignment: .leading, spacing: 4) {
-                if dynamicTypeSize.isAccessibilitySize {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(feature.title)
-                        .font(.headline.weight(.semibold))
+                        .font(.body)
                         .foregroundStyle(.primary)
 
-                    Text(feature.listSubtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-
                     metadata
-                        .padding(.top, 2)
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(feature.title)
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        Spacer(minLength: 8)
-
-                        metadata
-                    }
-
-                    Text(feature.listSubtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(feature.title)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                metadata
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .opacity(feature.isAvailable ? 1 : 0.7)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(feature.title), \(feature.listSubtitle), 입력 \(feature.inputLabel), \(isProcessing ? "처리 중" : "사용 가능")")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(feature.title), \(feature.listSubtitle)")
+        .accessibilityValue(isProcessing ? "처리 중" : "입력 형식 \(feature.inputLabel)")
     }
 
     @ViewBuilder
@@ -1105,11 +1058,11 @@ private struct UtilityFeatureRow: View {
                     .controlSize(.small)
                 Text("처리 중")
             }
-            .font(.caption.weight(.semibold))
+            .font(.footnote)
             .foregroundStyle(feature.kind.listAccentColor)
         } else {
             Label(feature.inputLabel, systemImage: inputSystemImage)
-                .font(.caption.weight(.semibold))
+                .font(.footnote)
                 .foregroundStyle(.secondary)
         }
     }
