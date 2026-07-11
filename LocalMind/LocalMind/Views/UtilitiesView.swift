@@ -994,6 +994,23 @@ private enum UtilityFeatureKind: Equatable {
         }
     }
 
+    var previewImageName: String {
+        switch self {
+        case .handwritingOCR:
+            return "UtilityHandwritingPreview"
+        case .meetingSummary:
+            return "UtilityMeetingPreview"
+        case .fileSummary:
+            return "UtilityFilePreview"
+        case .documentScan:
+            return "UtilityDocumentPreview"
+        case .receipt:
+            return "UtilityReceiptPreview"
+        case .businessCard:
+            return "UtilityBusinessCardPreview"
+        }
+    }
+
     var listAccentColor: Color {
         switch self {
         case .handwritingOCR:
@@ -1655,34 +1672,64 @@ private struct UtilityActionPickerOverlay: View {
 }
 
 private struct UtilityFeatureHero: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let feature: UtilityFeature
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: feature.systemImage)
-                .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(
-                    feature.kind.listAccentColor,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        VStack(alignment: .leading, spacing: 22) {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 14) {
+                    featureIcon
+                    featureText
+                }
+            } else {
+                HStack(alignment: .top, spacing: 14) {
+                    featureIcon
+                    featureText
+                    Spacer(minLength: 0)
+                }
+            }
+
+            Image(feature.kind.previewImageName)
+                .resizable()
+                .aspectRatio(4.0 / 3.0, contentMode: .fill)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
                 )
                 .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text(feature.title)
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(NoteFlowDesign.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(feature.subtitle)
-                    .font(.body)
-                    .foregroundStyle(NoteFlowDesign.charcoal)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var featureIcon: some View {
+        Image(systemName: feature.systemImage)
+            .font(.system(size: 21, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            .background(
+                feature.kind.listAccentColor,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .accessibilityHidden(true)
+    }
+
+    private var featureText: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(feature.title)
+                .font(.title.weight(.bold))
+                .foregroundStyle(NoteFlowDesign.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(feature.subtitle)
+                .font(.body)
+                .foregroundStyle(NoteFlowDesign.charcoal)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
