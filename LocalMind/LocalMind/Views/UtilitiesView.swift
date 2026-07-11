@@ -1061,20 +1061,9 @@ private struct UtilityFeatureRow: View {
             .font(.footnote)
             .foregroundStyle(feature.kind.listAccentColor)
         } else {
-            Label(feature.inputLabel, systemImage: inputSystemImage)
+            Text(feature.inputLabel)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private var inputSystemImage: String {
-        switch feature.inputLabel {
-        case "음성":
-            return "waveform"
-        case "파일":
-            return "doc"
-        default:
-            return "photo"
         }
     }
 }
