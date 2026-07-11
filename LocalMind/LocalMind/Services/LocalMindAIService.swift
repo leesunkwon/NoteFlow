@@ -7,45 +7,6 @@ fileprivate var selectedAIWritingStyle: AIWritingStyle {
     return rawValue.flatMap(AIWritingStyle.init(rawValue:)) ?? .defaultStyle
 }
 
-@Generable(description: "한국어 메모 정리 결과")
-struct NoteAnalysis {
-    @Guide(description: "30자 이하의 짧은 한국어 제목")
-    var suggestedTitle: String
-
-    @Guide(description: "2문장 이하의 한국어 요약")
-    var summary: String
-
-    @Guide(description: "메모를 분류할 한국어 태그", .count(0...5))
-    var tags: [String]
-}
-
-@Generable(description: "NoteFlow 블록")
-struct GeneratedAIBlock {
-    @Guide(description: "text, heading1, heading2, heading3, checklist, table, bulletedList, numberedList, toggle, quote, divider, callout 중 하나")
-    var type: String
-
-    @Guide(description: "블록에 들어갈 한국어 텍스트. divider는 빈 문자열")
-    var text: String
-
-    @Guide(description: "0부터 3까지의 들여쓰기 단계")
-    var indentLevel: Int
-
-    @Guide(description: "checklist 블록일 때 체크 여부. 다른 타입은 false")
-    var isChecked: Bool
-
-    @Guide(description: "table 블록일 때만 행을 | 문자로 구분한 문자열 배열. 예: 제목|상태", .count(0...12))
-    var tableRows: [String]
-}
-
-@Generable(description: "한국어 글쓰기 결과")
-struct AIWritingResponse {
-    @Guide(description: "블록 결과를 일반 텍스트로 이어 붙인 본문")
-    var content: String
-
-    @Guide(description: "앱에 적용할 구조화된 블록", .count(0...32))
-    var blocks: [GeneratedAIBlock]
-}
-
 enum LocalMindAIService {
     static func analyze(_ body: String) async -> NoteAnalysisResult {
         // 블록 정보가 없는 호출도 같은 내부 흐름을 타도록 빈 배열을 넘깁니다.
@@ -97,24 +58,8 @@ enum LocalMindAIService {
     }
 
     private static func analyzeWithFoundationModels(_ body: String, blocks: [AIBlockContext]) async -> NoteAnalysisResult {
-        let instructions = """
-        당신은 한국어 메모 앱의 개인 비서입니다.
-        사용자의 원문을 과장하지 않고, 없는 사실을 만들지 않습니다.
-        짧고 실용적으로 정리합니다.
-        요약 문장은 다음 문체를 약하게 반영합니다: \(selectedAIWritingStyle.promptInstruction)
-        메모 본문을 다시 쓰거나 블록 구조를 제안하지 않습니다.
-        제목, 메모 정보 요약, 태그만 생성합니다.
-        """
-
-        let prompt = """
-        다음 메모를 정리하세요.
-        - 제목은 30자 이하
-        - 메모 정보 요약은 2문장 이하
-        - 태그는 최대 5개
-
-        메모:
-        \(body)
-        """
+        let instructions = AppleFoundationModelsPrompts.analysisInstructions(style: selectedAIWritingStyle)
+        let prompt = AppleFoundationModelsPrompts.analysisPrompt(body: body)
 
         do {
             let session = LanguageModelSession(instructions: instructions)
@@ -198,45 +143,11 @@ enum LocalMindAIService {
     }
 
     private static func writeWithFoundationModels(_ body: String, blocks: [AIBlockContext], mode: WritingMode) async -> WritingResult {
-        let styleInstruction = mode == .proofread
-            ? "맞춤법 검사에서는 AI 문체 설정을 적용하지 않습니다."
-            : selectedAIWritingStyle.promptInstruction
-        let instructions = """
-        당신은 한국어 메모 앱의 글쓰기 보조 도구입니다.
-        사용자의 원문 의미를 보존하고, 없는 사실을 단정적으로 만들지 않습니다.
-        기존 메모의 블록 구조를 참고하고, 결과는 앱 블록 타입에 맞는 blocks로 반환합니다.
-        content에는 blocks를 일반 텍스트로 이어 붙인 내용을 넣습니다.
-        \(styleInstruction)
-        Markdown, 별표, 굵게 표시, bullet 기호, numbered list 기호를 content 텍스트에 사용하지 않습니다.
-        블록 타입은 text, heading1, heading2, heading3, checklist, table, bulletedList, numberedList, toggle, quote, divider, callout만 사용합니다.
-        image, file 블록은 새로 만들지 않습니다.
-        """
-
-        let task: String
-        switch mode {
-        case .summarizeBody:
-            task = "기존 메모 본문 내용을 짧고 명확하게 요약하세요. 새 본문으로 붙여넣을 수 있는 요약문만 작성하세요."
-        case .expand:
-            task = "기존 메모의 핵심을 유지하며 빠진 배경, 예시, 다음 행동을 2-4문단으로 보강하세요."
-        case .proofread:
-            task = "내용 추가, 요약, 문체 변경, 표현 개선 없이 맞춤법, 띄어쓰기, 오탈자, 기본 문장부호만 최소한으로 교정하세요. 문단 순서와 블록 타입은 최대한 그대로 유지하세요."
-        case .polish:
-            task = "의미를 유지하며 더 자연스럽고 명확한 한국어로 전체 문장을 다듬어 다시 작성하세요."
-        case .continueWriting:
-            task = "기존 톤을 유지하며 다음에 이어질 만한 문단을 작성하세요."
-        case .custom:
-            task = "사용자의 명령에 따라 메모를 보조하세요."
-        }
-
-        let prompt = """
-        작업: \(task)
-
-        메모:
-        \(body)
-
-        현재 블록 구조:
-        \(blockContextDescription(blocks))
-        """
+        let instructions = AppleFoundationModelsPrompts.writingInstructions(
+            style: selectedAIWritingStyle,
+            mode: mode
+        )
+        let prompt = AppleFoundationModelsPrompts.writingPrompt(body: body, blocks: blocks, mode: mode)
 
         do {
             let session = LanguageModelSession(instructions: instructions)
@@ -272,28 +183,12 @@ enum LocalMindAIService {
     }
 
     private static func customWithFoundationModels(_ body: String, blocks: [AIBlockContext], instruction: String) async -> WritingResult {
-        let instructions = """
-        당신은 한국어 메모 앱의 글쓰기 보조 도구입니다.
-        사용자의 명령이나 질문에 답하되, 메모 원문에 없는 사실은 단정하지 않습니다.
-        메모가 비어 있으면 사용자 명령만 기준으로 새 글이나 초안을 작성합니다.
-        기존 메모의 블록 구조를 참고하고, 결과는 앱 블록 타입에 맞는 blocks로 반환합니다.
-        content에는 blocks를 일반 텍스트로 이어 붙인 내용을 넣습니다.
-        \(selectedAIWritingStyle.promptInstruction)
-        Markdown, 별표, 굵게 표시, bullet 기호, numbered list 기호를 content 텍스트에 사용하지 않습니다.
-        블록 타입은 text, heading1, heading2, heading3, checklist, table, bulletedList, numberedList, toggle, quote, divider, callout만 사용합니다.
-        image, file 블록은 새로 만들지 않습니다.
-        """
-
-        let prompt = """
-        사용자 명령:
-        \(instruction)
-
-        메모:
-        \(body)
-
-        현재 블록 구조:
-        \(blockContextDescription(blocks))
-        """
+        let instructions = AppleFoundationModelsPrompts.customInstructions(style: selectedAIWritingStyle)
+        let prompt = AppleFoundationModelsPrompts.customPrompt(
+            body: body,
+            blocks: blocks,
+            instruction: instruction
+        )
 
         do {
             let session = LanguageModelSession(instructions: instructions)
