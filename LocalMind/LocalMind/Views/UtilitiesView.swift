@@ -52,7 +52,6 @@ struct UtilitiesView: View {
             title: "손글씨 인식",
             listSubtitle: "손글씨를 메모 블록으로 변환",
             subtitle: "손글씨와 화이트보드를 메모 블록으로 바꿉니다.",
-            description: "종이에 적은 손글씨나 화이트보드 내용을 읽어 NoteFlow 메모 블록으로 변환합니다. 결과를 확인한 뒤 새 메모로 바로 저장할 수 있습니다.",
             systemImage: "text.viewfinder",
             inputLabel: "이미지"
         ),
@@ -62,7 +61,6 @@ struct UtilitiesView: View {
             title: "회의 요약",
             listSubtitle: "음성을 회의록과 요약으로 정리",
             subtitle: "음성을 회의록과 핵심 요약으로 정리합니다.",
-            description: "녹음한 회의나 가져온 음성 파일을 읽어 제목, 핵심 요약, 회의록 본문으로 정리합니다. 결과를 확인한 뒤 새 메모로 저장할 수 있습니다.",
             systemImage: "waveform",
             inputLabel: "음성"
         ),
@@ -72,7 +70,6 @@ struct UtilitiesView: View {
             title: "파일 요약",
             listSubtitle: "PDF, TXT, DOCX를 요약 메모로 변환",
             subtitle: "PDF, TXT, DOCX를 요약 메모로 정리합니다.",
-            description: "가져온 파일의 내용을 읽어 제목, 핵심 요약, 정리 본문으로 바꿉니다. 결과를 수정한 뒤 NoteFlow 메모로 저장할 수 있습니다.",
             systemImage: "doc.text.magnifyingglass",
             inputLabel: "파일"
         ),
@@ -82,7 +79,6 @@ struct UtilitiesView: View {
             title: "문서 스캔",
             listSubtitle: "종이 문서를 텍스트 메모로 변환",
             subtitle: "종이 문서를 텍스트 메모로 바꿉니다.",
-            description: "계약서, 출력물, 종이 문서를 촬영해 제목과 본문, 표 구조를 갖춘 메모로 변환합니다. 결과를 확인한 뒤 새 메모로 저장할 수 있습니다.",
             systemImage: "doc.viewfinder",
             inputLabel: "이미지"
         ),
@@ -92,7 +88,6 @@ struct UtilitiesView: View {
             title: "영수증 스캔",
             listSubtitle: "결제 정보를 지출 내역으로 정리",
             subtitle: "영수증에서 날짜, 금액, 가맹점을 정리합니다.",
-            description: "영수증 속 결제 정보를 읽어 지출 내역으로 정리합니다. 날짜, 금액, 가맹점, 품목을 확인한 뒤 새 메모로 바로 저장할 수 있습니다.",
             systemImage: "receipt",
             inputLabel: "이미지"
         ),
@@ -102,7 +97,6 @@ struct UtilitiesView: View {
             title: "명함 스캔",
             listSubtitle: "명함 정보를 연락처 메모로 정리",
             subtitle: "명함 정보를 연락처 형태로 정리합니다.",
-            description: "명함 속 이름, 회사, 직책, 전화번호, 이메일을 읽어 정돈된 메모로 바꿉니다. 연락처 앱 연동 없이 NoteFlow 메모로 저장합니다.",
             systemImage: "person.crop.rectangle",
             inputLabel: "이미지"
         )
@@ -978,61 +972,42 @@ private enum UtilityFeatureKind: Equatable {
         }
     }
 
-    var ambientColors: [Color] {
+    var actionTitle: String {
         switch self {
-        case .documentScan:
-            return [
-                Color(red: 0.20, green: 0.58, blue: 1.0),
-                Color(red: 0.66, green: 0.86, blue: 1.0),
-                Color(red: 0.84, green: 0.86, blue: 0.92)
-            ]
-        case .fileSummary:
-            return [
-                Color(red: 0.38, green: 0.42, blue: 1.0),
-                Color(red: 0.18, green: 0.88, blue: 0.76),
-                Color(red: 0.72, green: 0.48, blue: 1.0)
-            ]
-        case .receipt:
-            return [
-                Color(red: 0.30, green: 0.92, blue: 0.68),
-                Color(red: 0.78, green: 0.95, blue: 0.38),
-                Color(red: 0.20, green: 0.68, blue: 0.98)
-            ]
-        case .businessCard:
-            return [
-                Color(red: 0.48, green: 0.46, blue: 1.0),
-                Color(red: 0.78, green: 0.34, blue: 0.96),
-                Color(red: 0.24, green: 0.70, blue: 1.0)
-            ]
-        case .handwritingOCR:
-            return [
-                Color(red: 0.22, green: 0.56, blue: 1.0),
-                Color(red: 0.22, green: 0.94, blue: 0.88),
-                Color(red: 0.68, green: 0.48, blue: 1.0)
-            ]
+        case .receipt, .businessCard, .handwritingOCR, .documentScan:
+            return "이미지 선택"
         case .meetingSummary:
-            return [
-                Color(red: 1.0, green: 0.54, blue: 0.26),
-                Color(red: 1.0, green: 0.38, blue: 0.66),
-                Color(red: 0.58, green: 0.42, blue: 1.0)
-            ]
+            return "음성 준비"
+        case .fileSummary:
+            return "파일 선택"
         }
     }
 
-    var accentLabel: String {
+    var actionSystemImage: String {
         switch self {
-        case .documentScan:
-            return "Document intelligence"
-        case .fileSummary:
-            return "File intelligence"
-        case .receipt:
-            return "Scan expenses"
-        case .businessCard:
-            return "Smart contacts"
-        case .handwritingOCR:
-            return "Handwriting to note"
+        case .receipt, .businessCard, .handwritingOCR, .documentScan:
+            return "photo.on.rectangle"
         case .meetingSummary:
-            return "Meeting intelligence"
+            return "waveform"
+        case .fileSummary:
+            return "doc"
+        }
+    }
+
+    var previewImageName: String {
+        switch self {
+        case .handwritingOCR:
+            return "UtilityHandwritingPreview"
+        case .meetingSummary:
+            return "UtilityMeetingPreview"
+        case .fileSummary:
+            return "UtilityFilePreview"
+        case .documentScan:
+            return "UtilityDocumentPreview"
+        case .receipt:
+            return "UtilityReceiptPreview"
+        case .businessCard:
+            return "UtilityBusinessCardPreview"
         }
     }
 
@@ -1078,10 +1053,8 @@ private struct UtilityFeature: Identifiable {
     let title: String
     let listSubtitle: String
     let subtitle: String
-    let description: String
     let systemImage: String
     let inputLabel: String
-    let providerLabel = "Gemini"
 
     var isAvailable: Bool {
         true
@@ -1192,25 +1165,6 @@ private struct UtilityFeatureRow: View {
     }
 }
 
-private struct UtilityFeatureBadge: View {
-    let text: String
-    let systemImage: String
-
-    var body: some View {
-        Label(text, systemImage: systemImage)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(NoteFlowDesign.mute)
-            .labelStyle(.titleAndIcon)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(NoteFlowDesign.canvas, in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
-            )
-    }
-}
-
 private struct UtilityFeatureDetailView: View {
     let feature: UtilityFeature
     let isProcessing: Bool
@@ -1232,22 +1186,23 @@ private struct UtilityFeatureDetailView: View {
 
     var body: some View {
         ZStack {
-            UtilityFeatureAmbientBackground(colors: feature.kind.ambientColors)
-
             ScrollView {
-                VStack(alignment: .leading, spacing: 30) {
-                    UtilityFeatureHero(feature: feature)
-                    bottomAction
-                }
+                UtilityFeatureHero(feature: feature)
                 .padding(.horizontal, 22)
-                .padding(.top, 26)
-                .padding(.bottom, 72)
+                .padding(.top, 24)
+                .padding(.bottom, 40)
             }
 
             actionPickerOverlay
         }
         .background(NoteFlowDesign.canvas.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !isShowingActionPicker {
+                bottomAction
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .photosPicker(
             isPresented: $showsPhotoPicker,
             selection: $selectedPhotoItem,
@@ -1299,6 +1254,10 @@ private struct UtilityFeatureDetailView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: showsImageSourceDialog)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: showsMeetingModeDialog)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: showsAudioSourceDialog)
+    }
+
+    private var isShowingActionPicker: Bool {
+        showsImageSourceDialog || showsMeetingModeDialog || showsAudioSourceDialog
     }
 
     @ViewBuilder
@@ -1387,33 +1346,42 @@ private struct UtilityFeatureDetailView: View {
     }
 
     private var bottomAction: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
+            Text("Gemini API로 처리됩니다.")
+                .font(.footnote)
+                .foregroundStyle(NoteFlowDesign.mute)
+
             Button {
                 if feature.isAvailable && !isProcessing {
                     startFeature()
                 }
             } label: {
-                Text(feature.isAvailable ? (isProcessing ? "분석 중" : "시작") : "준비 중")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(feature.isAvailable && !isProcessing ? .white : NoteFlowDesign.mute)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 58)
-                    .background(buttonBackground, in: Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(.white.opacity(feature.isAvailable && !isProcessing ? 0.26 : 0), lineWidth: 1)
-                    )
-                    .shadow(
-                        color: feature.isAvailable && !isProcessing ? feature.kind.ambientColors[0].opacity(0.24) : .clear,
-                        radius: 18,
-                        x: 0,
-                        y: 10
-                    )
+                Group {
+                    if isProcessing {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .tint(.white)
+                            Text("분석 중")
+                        }
+                    } else {
+                        Label(
+                            feature.isAvailable ? feature.kind.actionTitle : "준비 중",
+                            systemImage: feature.kind.actionSystemImage
+                        )
+                    }
+                }
+                .font(.headline.weight(.semibold))
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .tint(NoteFlowDesign.ink)
+            .controlSize(.large)
             .disabled(!feature.isAvailable || isProcessing)
         }
-        .padding(.top, 4)
+        .padding(.horizontal, 22)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(.ultraThinMaterial)
     }
 
     private func startFeature() {
@@ -1455,18 +1423,6 @@ private struct UtilityFeatureDetailView: View {
             return "text.badge.checkmark"
         case .transcriptAndSummary:
             return "doc.text.magnifyingglass"
-        }
-    }
-
-    private var buttonBackground: AnyShapeStyle {
-        if feature.isAvailable && !isProcessing {
-            AnyShapeStyle(LinearGradient(
-                colors: [NoteFlowDesign.ink, NoteFlowDesign.charcoal],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ))
-        } else {
-            AnyShapeStyle(NoteFlowDesign.softCloud)
         }
     }
 
@@ -1619,7 +1575,7 @@ private struct UtilityActionPickerOverlay: View {
     let message: String
     let options: [UtilityActionPickerOption]
     let dismiss: () -> Void
-    private let bottomPanelClearance: CGFloat = 108
+    private let bottomPanelClearance: CGFloat = 34
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -1715,148 +1671,65 @@ private struct UtilityActionPickerOverlay: View {
     }
 }
 
-private struct UtilityFeatureAmbientBackground: View {
-    let colors: [Color]
-    @State private var animate = false
-
-    var body: some View {
-        ZStack {
-            NoteFlowDesign.canvas
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [colors[safe: 0].opacity(0.22), .clear],
-                        center: .center,
-                        startRadius: 8,
-                        endRadius: 210
-                    )
-                )
-                .frame(width: 360, height: 360)
-                .offset(x: animate ? 110 : -120, y: animate ? -190 : -120)
-                .scaleEffect(animate ? 1.08 : 0.9)
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [colors[safe: 1].opacity(0.18), .clear],
-                        center: .center,
-                        startRadius: 8,
-                        endRadius: 240
-                    )
-                )
-                .frame(width: 420, height: 420)
-                .offset(x: animate ? -120 : 110, y: animate ? 120 : 210)
-                .scaleEffect(animate ? 0.9 : 1.12)
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [colors[safe: 2].opacity(0.14), .clear],
-                        center: .center,
-                        startRadius: 6,
-                        endRadius: 180
-                    )
-                )
-                .frame(width: 300, height: 300)
-                .offset(x: animate ? 46 : -36, y: animate ? 6 : -18)
-                .scaleEffect(animate ? 1.12 : 0.88)
-        }
-        .blur(radius: 28)
-        .saturation(1.08)
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 3.8).repeatForever(autoreverses: true)) {
-                animate = true
-            }
-        }
-    }
-}
-
 private struct UtilityFeatureHero: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let feature: UtilityFeature
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            icon
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text(feature.kind.accentLabel.uppercased())
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(NoteFlowDesign.mute)
-
-                HStack(spacing: 8) {
-                    UtilityFeatureBadge(text: feature.inputLabel, systemImage: inputSystemImage)
-                    UtilityFeatureBadge(text: feature.providerLabel, systemImage: "sparkles")
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 14) {
+                    featureIcon
+                    featureText
                 }
-
-                Text(feature.title)
-                    .font(.system(size: 38, weight: .black))
-                    .foregroundStyle(NoteFlowDesign.ink)
-                    .tracking(0)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(feature.description)
-                    .font(.system(size: 17, weight: .regular))
-                    .lineSpacing(5)
-                    .foregroundStyle(NoteFlowDesign.charcoal)
-                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(alignment: .top, spacing: 14) {
+                    featureIcon
+                    featureText
+                    Spacer(minLength: 0)
+                }
             }
+
+            Image(feature.kind.previewImageName)
+                .resizable()
+                .aspectRatio(4.0 / 3.0, contentMode: .fill)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(NoteFlowDesign.hairlineSoft, lineWidth: 1)
+                )
+                .accessibilityHidden(true)
         }
-        .padding(.top, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var icon: some View {
-        ZStack {
-            Circle()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    feature.kind.ambientColors[0].opacity(0.22),
-                                    feature.kind.ambientColors[1].opacity(0.10),
-                                    .white.opacity(0.36)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                )
-                .overlay(
-                    Circle()
-                        .stroke(.white.opacity(0.58), lineWidth: 1)
-                )
-                .shadow(color: feature.kind.ambientColors[0].opacity(0.18), radius: 24, x: 0, y: 12)
+    private var featureIcon: some View {
+        Image(systemName: feature.systemImage)
+            .font(.system(size: 21, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            .background(
+                feature.kind.listAccentColor,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .accessibilityHidden(true)
+    }
 
-            Image(systemName: feature.systemImage)
-                .font(.system(size: 36, weight: .semibold))
+    private var featureText: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(feature.title)
+                .font(.title.weight(.bold))
                 .foregroundStyle(NoteFlowDesign.ink)
-        }
-        .frame(width: 88, height: 88)
-    }
+                .fixedSize(horizontal: false, vertical: true)
 
-    private var inputSystemImage: String {
-        switch feature.inputLabel {
-        case "음성":
-            return "waveform"
-        case "파일":
-            return "doc"
-        default:
-            return "photo"
+            Text(feature.subtitle)
+                .font(.body)
+                .foregroundStyle(NoteFlowDesign.charcoal)
+                .fixedSize(horizontal: false, vertical: true)
         }
-    }
-}
-
-private extension Array where Element == Color {
-    subscript(safe index: Int) -> Color {
-        guard indices.contains(index) else {
-            return .clear
-        }
-        return self[index]
+        .accessibilityElement(children: .combine)
     }
 }
 
